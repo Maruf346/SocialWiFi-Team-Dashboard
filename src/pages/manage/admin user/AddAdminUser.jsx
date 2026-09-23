@@ -5,38 +5,32 @@ import { addAdminUser } from "../../../utils/adminStore";
 
 const permissionGroups = [
   {
-    title: "Admin",
-    items: ["Admin user list", "Add admin user"],
+    title: 'Admin',
+    items: ['Admin user list', 'Add admin user'],
   },
   {
-    title: "Support",
-    items: [
-      "Contact support",
-      "Help center",
-      "Submit a support ticket",
-      "Resources",
-    ],
+    title: 'Team Users',
+    items: ['Manage'],
   },
   {
-    title: "Team Users",
-    items: ["Manage"],
+    title: 'Route History',
+    items: ['My route history', 'Team route history'],
   },
   {
-    title: "Route History",
-    items: ["My route history", "Team route history"],
+    title: 'Legal',
+    items: ['Privacy Policy', 'Terms of Use', 'Disclaimer'],
+  },
+    {
+    title: 'Support',
+    items: ['Contact support', 'Help center', 'Submit a support ticket', 'Resources'],
   },
   {
-    title: "Legal",
-    items: ["Privacy Policy", "Terms of Use", "Disclaimer"],
+    title: 'Security, Logging & Compliance',
+    items: ['Logout', 'Data protection', 'Delete account'],
   },
   {
-    title: "My Plan",
-    items: ["Manage"],
-  },
-
-  {
-    title: "Security, Logging & Compliance",
-    items: ["Logout", "Data protection", "Delete account"],
+    title: 'My Plan',
+    items: ['Manage'],
   },
 ];
 
@@ -150,7 +144,7 @@ const AddAdminUser = () => {
           </div>
         </div>
 
-        <fieldset className="flex border-b border-[#e5e5e5] py-3">
+        <fieldset className="mt-4 flex border-b border-[#e5e5e5] py-3">
           <legend className="w-36 px-2 text-xs font-semibold">
             Permissions:
           </legend>
