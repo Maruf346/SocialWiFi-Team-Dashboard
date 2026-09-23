@@ -210,8 +210,8 @@ const SubmitTicket = () => {
   const subtopics = selectedTopic ? subtopicMap[selectedTopic] || [] : [];
 
   return (
-    <div className="min-h-full px-2 py-2 text-[#666] md:px-8 md:py-4">
-      <h1 className="mb-5 text-[18px] font-normal text-[#666] md:text-[22px]">
+    <div className="min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
+      <h1 className="mb-8 text-xl font-normal text-[#999] md:text-2xl">
         Support ticket
       </h1>
 

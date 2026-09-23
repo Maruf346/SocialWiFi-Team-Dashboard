@@ -2,8 +2,8 @@ import React from "react";
 
 const ContactSupport = () => {
   return (
-    <div className="min-h-full px-2 py-2 text-[#666] md:px-8 md:py-4">
-      <h1 className="mb-6 text-[18px] font-normal text-[#666] md:text-[24px]">
+    <div className="min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
+      <h1 className="mb-8 text-xl font-normal text-[#999] md:text-2xl">
         Contact us
       </h1>
 

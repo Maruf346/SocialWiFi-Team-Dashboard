@@ -42,7 +42,7 @@ const DashboardLayout = () => {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Full-width header row */}
-      <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center bg-[#0b0d2d] md:h-[72px]">
+      <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center bg-gradient-to-b from-[#1B235E] to-[#190F0C] md:h-[72px]" style={{ background: 'linear-gradient(180deg, #1B235E 0%, #190F0C 100%)' }}>
           <Header onMenuClick={handleMenuClick} />
       </header>
 

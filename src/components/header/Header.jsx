@@ -5,7 +5,7 @@ import { useNavigate } from "react-router";
 const Header = ({ onMenuClick }) => {
   const navigate = useNavigate();
   return (
-    <div className="flex h-full w-full items-center justify-between bg-[#0b0d2d] px-4 md:px-8">
+    <div className="flex h-full w-full items-center justify-between bg-transparent px-4 md:px-8">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -34,9 +34,13 @@ const Header = ({ onMenuClick }) => {
         </a>
 
         <span>/</span>
-        <a href="#change-password" className="underline underline-offset-2">
+        <button
+          type="button"
+          onClick={() => navigate("/dashboard/manage/email")}
+          className="underline underline-offset-2 cursor-pointer uppercase text-xs lg:text-sm text-white"
+        >
           Change password
-        </a>
+        </button>
         <span>/</span>
         <button
           onClick={() => navigate("/")}

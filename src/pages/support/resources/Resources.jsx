@@ -56,9 +56,9 @@ const Resources = () => {
   };
 
   return (
-    <div className="min-h-full px-2 py-2 text-[#777] md:px-4 md:py-3">
-      <div className="mb-12 flex items-center justify-between">
-        <h1 className="text-2xl font-normal text-[#999]">Resources</h1>
+    <div className="min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
+      <div className="mb-8 flex items-center justify-between">
+        <h1 className="text-xl font-normal text-[#999] md:text-2xl">Resources</h1>
         
       </div>
       <div className="mb-2 flex flex-wrap items-end justify-end gap-2 text-sm">

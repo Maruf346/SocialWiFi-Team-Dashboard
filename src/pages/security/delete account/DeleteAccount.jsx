@@ -2,8 +2,8 @@ import React from 'react'
 
 const DeleteAccount = () => {
   return (
-    <div className="min-h-full px-2 py-2 text-[#666] md:px-8 md:py-4">
-      <h1 className="mb-6 text-[18px] font-normal text-[#666] md:text-[22px]">Delete account</h1>
+    <div className="min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
+      <h1 className="mb-8 text-xl font-normal text-[#999] md:text-2xl">Delete account</h1>
 
       <div className="max-w-[740px] space-y-6">
         <div className="rounded border border-[#d9d9d9] bg-[#f0f0f0] p-5 md:p-8">

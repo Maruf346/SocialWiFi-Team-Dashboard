@@ -2,8 +2,8 @@ import React from "react";
 
 const Plan = () => {
   return (
-    <div className="min-h-full  px-3 py-3 text-[#4b4b4b] md:px-6 md:py-4">
-      <h1 className="mb-6 text-[15px] font-normal text-[#3d3d3d] md:text-[16px]">
+    <div className="min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
+      <h1 className="mb-8 text-xl font-normal text-[#999] md:text-2xl">
         Manage plan
       </h1>
 

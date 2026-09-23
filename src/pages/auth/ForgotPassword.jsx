@@ -6,18 +6,8 @@ const ForgotPassword = () => {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <header className="flex h-16 items-center justify-between bg-[#0b0d2d] px-5 md:h-[72px] md:px-10">
-        <img
-          src={Icons.headerLogo}
-          alt="Right Route"
-          className="h-12 w-auto object-contain md:h-14"
-        />
-      </header>
-
-      <div className="h-7 bg-[#ff823d]" />
-
       <main
-        className="flex min-h-[calc(100vh-7rem)] items-center justify-center bg-cover bg-center px-4 pt-20 md:pt-24"
+        className="flex min-h-screen items-center justify-center bg-cover bg-center px-4 py-8"
         style={{ backgroundImage: `url(${Icons.authBg})` }}
       >
         <section className="flex w-full max-w-[390px] flex-col items-center">
@@ -46,7 +36,7 @@ const ForgotPassword = () => {
 
             <button
               type="submit"
-              className="mx-auto h-9 w-20 bg-[#ff823d] text-xs text-white cursor-pointer"
+              className="mx-auto h-9 w-20 rounded-[6px] bg-[#ff823d] text-xs font-semibold uppercase tracking-wider text-white transition hover:brightness-95 cursor-pointer"
             >
               SUBMIT
             </button>

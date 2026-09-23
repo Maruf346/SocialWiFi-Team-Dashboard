@@ -1,27 +1,26 @@
-
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-
-const initialAdminUsers = [
-  { name: 'John Doe', role: 'Super Admin', id: 'USR-1001', status: 'Allowed', isSuperAdmin: true },
-  { name: 'Suzy Cue', role: 'Fleet Acct Mgmt', id: 'USR-1785', status: 'Allowed', isSuperAdmin: false },
-  { name: 'G. I. Joe', role: 'Customer Support', id: 'USR-1513', status: 'Locked', isSuperAdmin: false },
-  { name: 'Tom Thumb', role: 'Revenue Metrics', id: 'USR-2549', status: 'Allowed', isSuperAdmin: false },
-  { name: 'Jimmy Hendrix', role: 'Subscription Mgmt', id: 'USR-8391', status: 'Allowed', isSuperAdmin: false },
-  { name: 'Sponge Bob', role: 'Audit Log Mgmt', id: 'USR-0127', status: 'Allowed', isSuperAdmin: false },
-  { name: 'Robin Hood', role: 'Marketing', id: 'USR-4567', status: 'Allowed', isSuperAdmin: false },
-]
+import {
+  getAdminUsers,
+  deleteAdminUsers,
+  lockAdminUsers,
+  unlockAdminUsers,
+} from '../../../utils/adminStore'
 
 const currentSuperAdminId = 'USR-1001'
 
 const actionButtonClass =
-  'w-36 rounded-full bg-[#888] px-3 py-1 text-center text-[10px] text-white  cursor-pointer'
+  'rounded-full bg-[#707070] hover:bg-[#5e5e5e] px-4 py-1.5 text-center text-[11px] font-bold text-white tracking-wider cursor-pointer inline-flex items-center gap-1 transition-colors'
 
 const AdminUser = () => {
-  const [adminUsers, setAdminUsers] = useState(initialAdminUsers)
+  const [adminUsers, setAdminUsers] = useState([])
   const [selectedUsers, setSelectedUsers] = useState([])
   const [selectedAction, setSelectedAction] = useState('')
   const navigate = useNavigate()
+
+  useEffect(() => {
+    setAdminUsers(getAdminUsers())
+  }, [])
 
   const toggleUser = (userId) => {
     setSelectedUsers((currentUsers) =>
@@ -71,23 +70,18 @@ const AdminUser = () => {
     }
 
     if (selectedAction === 'delete-user') {
-      setAdminUsers((currentUsers) => currentUsers.filter((user) => !selectedUsers.includes(user.id)))
+      const updated = deleteAdminUsers(selectedUsers)
+      setAdminUsers(updated)
     }
 
     if (selectedAction === 'lock-user') {
-      setAdminUsers((currentUsers) =>
-        currentUsers.map((user) =>
-          selectedUsers.includes(user.id) ? { ...user, status: 'Locked' } : user,
-        ),
-      )
+      const updated = lockAdminUsers(selectedUsers)
+      setAdminUsers(updated)
     }
 
     if (selectedAction === 'unlock-user') {
-      setAdminUsers((currentUsers) =>
-        currentUsers.map((user) =>
-          selectedUsers.includes(user.id) ? { ...user, status: 'Allowed' } : user,
-        ),
-      )
+      const updated = unlockAdminUsers(selectedUsers)
+      setAdminUsers(updated)
     }
 
     setSelectedUsers([])
@@ -95,35 +89,41 @@ const AdminUser = () => {
   }
 
   return (
-    <div className="min-h-full  px-2 py-2 text-[#888] md:px-10 md:py-4">
-      <div className="mb-16 flex items-center justify-between">
+    <div className="min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
+      <div className="mb-8 flex items-center justify-between">
         <h1 className="text-xl font-normal text-[#999] md:text-2xl">Admin user list</h1>
         <button
           type="button"
           onClick={() => navigate('/dashboard/manage/admin-users/add-user')}
           className={actionButtonClass}
         >
-          ADD ADMIN USER <span className="font-bold">+</span>
+          ADD ADMIN USER <span className="text-sm font-black leading-none">+</span>
         </button>
       </div>
 
-      <div className="mb-2 flex items-center gap-1 text-[11px]">
+      <div className="mb-2 flex items-center gap-1.5 text-[11px]">
         <label htmlFor="admin-action">Action:</label>
         <select
           id="admin-action"
           value={selectedAction}
           onChange={(event) => setSelectedAction(event.target.value)}
-          className="h-6 w-48 border border-[#ccc] bg-white px-1 text-[11px] text-[#777]"
+          className="h-6 w-44 border border-[#ccc] bg-white px-1 text-[11px] text-[#777] outline-none"
         >
           <option value="">-----------</option>
           <option value="delete-user">Delete user</option>
           <option value="lock-user">Lock out user</option>
           <option value="unlock-user">Unlock user</option>
         </select>
-        <button type="button" onClick={applyAction} className="h-6 border border-[#ccc] bg-[#f2f2f2] px-2 text-[10px]">
+        <button
+          type="button"
+          onClick={applyAction}
+          className="h-6 rounded-sm border border-[#ccc] bg-[#f2f2f2] px-2.5 text-[10px] text-[#555] hover:bg-[#e8e8e8] cursor-pointer"
+        >
           Go
         </button>
-        <span className="ml-2">{selectedUsers.length} of {adminUsers.length} selected</span>
+        <span className="ml-2 text-[#777]">
+          {selectedUsers.length} of {adminUsers.length} selected
+        </span>
       </div>
 
       <div className="overflow-x-auto">
@@ -133,47 +133,57 @@ const AdminUser = () => {
               <th className="w-8 px-2">
                 <input
                   type="checkbox"
-                  checked={selectedUsers.length === adminUsers.length}
+                  checked={adminUsers.length > 0 && selectedUsers.length === adminUsers.length}
                   onChange={toggleAllUsers}
                   aria-label="Select all admin users"
                 />
               </th>
-              <th className="px-2">Admin users</th>
-              <th className="px-2">User role</th>
-              <th className="px-2">User ID</th>
-              <th className="px-2">Access status</th>
+              <th className="px-2 font-bold tracking-wider">ADMIN USERS</th>
+              <th className="px-2 font-bold tracking-wider">USER ROLE</th>
+              <th className="px-2 font-bold tracking-wider">USER ID</th>
+              <th className="px-2 font-bold tracking-wider">ACCESS STATUS</th>
             </tr>
           </thead>
           <tbody>
-            {adminUsers.map((user) => (
-              <tr key={user.id} className="h-7 border-b border-white bg-[#f5f5f5] even:bg-[#fafafa]">
-                <td className="px-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedUsers.includes(user.id)}
-                    onChange={() => toggleUser(user.id)}
-                    aria-label={`Select ${user.name}`}
-                  />
-                </td>
-                <td className="px-2">
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/dashboard/manage/admin-users/edit/${user.id}`)}
-                    className="underline underline-offset-2 cursor-pointer"
-                  >
-                    {user.name}
-                  </button>
-                </td>
-                <td className="px-2">{user.role}</td>
-                <td className="px-2">{user.id}</td>
-                <td className="px-2">{user.status}</td>
-              </tr>
-            ))}
+            {adminUsers.map((user, index) => {
+              const isEvenRow = index % 2 === 1
+              return (
+                <tr
+                  key={user.id}
+                  className={`h-7 border-b border-[#ececec] ${
+                    isEvenRow ? 'bg-[#f5f5f5]' : 'bg-white'
+                  }`}
+                >
+                  <td className="px-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.includes(user.id)}
+                      onChange={() => toggleUser(user.id)}
+                      aria-label={`Select ${user.name}`}
+                    />
+                  </td>
+                  <td className="px-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/dashboard/manage/admin-users/edit/${user.id}`)}
+                      className="text-[#3b5998] hover:underline cursor-pointer"
+                    >
+                      {user.name}
+                    </button>
+                  </td>
+                  <td className="px-2 text-[#555]">{user.role}</td>
+                  <td className="px-2 text-[#555]">{user.id}</td>
+                  <td className="px-2 text-[#555]">{user.status}</td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
 
-      <p className="mt-3 border-b border-[#eee] pb-3 text-[11px]">{adminUsers.length} admin users</p>
+      <p className="mt-3 border-b border-[#eee] pb-3 text-[11px] text-[#777]">
+        {adminUsers.length} admin users
+      </p>
     </div>
   )
 }

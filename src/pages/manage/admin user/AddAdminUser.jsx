@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router";
+import { addAdminUser } from "../../../utils/adminStore";
 
 const permissionGroups = [
   {
@@ -43,10 +44,42 @@ const AddAdminUser = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
+  const [formData, setFormData] = useState({
+    name: "Eric Little",
+    email: "el2609@gmail.com",
+    phone: "612-123-4567",
+    role: "Legal Adviser",
+  });
+  const [selectedPermissions, setSelectedPermissions] = useState({});
+
+  const handleInputChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const togglePermission = (item) => {
+    setSelectedPermissions((prev) => ({
+      ...prev,
+      [item]: !prev[item],
+    }));
+  };
 
   const generatePassword = () => {
     const randomPassword = "ay4cczbZYOI1uB";
     setPassword(randomPassword);
+  };
+
+  const handleAddSubmit = (event) => {
+    event.preventDefault();
+    addAdminUser({
+      name: formData.name || "Eric Little",
+      email: formData.email || "el2609@gmail.com",
+      phone: formData.phone || "612-123-4567",
+      role: formData.role || "Legal Adviser",
+      status: "Allowed",
+      isSuperAdmin: false,
+      permissions: selectedPermissions,
+    });
+    navigate("/dashboard/manage/admin-users");
   };
 
   return (
@@ -57,15 +90,15 @@ const AddAdminUser = () => {
 
       <form
         className="mx-auto max-w-5xl"
-        onSubmit={(event) => event.preventDefault()}
+        onSubmit={handleAddSubmit}
       >
         <div className="space-y-2">
           {[
-            ["Name:", "Eric Little", "text"],
-            ["Email:", "el2609@gmail.com", "email"],
-            ["Phone:", "612-123-4567", "tel"],
-            ["Role:", "Legal Adviser", "text"],
-          ].map(([label, placeholder, type]) => (
+            ["Name:", "name", formData.name, "text"],
+            ["Email:", "email", formData.email, "email"],
+            ["Phone:", "phone", formData.phone, "tel"],
+            ["Role:", "role", formData.role, "text"],
+          ].map(([label, field, val, type]) => (
             <div
               key={label}
               className="flex items-center border-b border-[#e5e5e5] pb-2"
@@ -73,7 +106,9 @@ const AddAdminUser = () => {
               <label className="w-36 px-2 text-xs font-semibold">{label}</label>
               <input
                 type={type}
-                placeholder={placeholder}
+                value={val}
+                onChange={(e) => handleInputChange(field, e.target.value)}
+                placeholder={label.replace(":", "")}
                 aria-label={label.replace(":", "")}
                 className="h-7 w-60 rounded border border-[#d5d5d5] px-2 text-xs text-gray-600 outline-none focus:border-[#1d2464]"
               />
@@ -107,7 +142,7 @@ const AddAdminUser = () => {
               <button
                 type="button"
                 onClick={generatePassword}
-                className="inline-flex items-center gap-1 rounded border border-[#cfcfcf] bg-[#f5f5f5] px-2 py-1 text-[11px] text-[#4a4a4a]"
+                className="inline-flex items-center gap-1 rounded border border-[#cfcfcf] bg-[#f5f5f5] px-2 py-1 text-[11px] text-[#4a4a4a] hover:bg-[#e8e8e8] cursor-pointer"
               >
                 Generate
               </button>
@@ -132,7 +167,11 @@ const AddAdminUser = () => {
                       key={item}
                       className="flex items-center gap-1 py-0.5 text-xs"
                     >
-                      <input type="checkbox" />
+                      <input
+                        type="checkbox"
+                        checked={Boolean(selectedPermissions[item])}
+                        onChange={() => togglePermission(item)}
+                      />
                       {item}
                     </label>
                   ))}
@@ -144,16 +183,15 @@ const AddAdminUser = () => {
 
         <div className="mt-6 flex gap-2 rounded-lg border border-[#e5e5e5] bg-[#fafafa] p-3">
           <button
-            onClick={() => navigate("/dashboard/manage/admin-users")}
             type="submit"
-            className="rounded bg-[#1d2464] px-4 py-2 text-xs text-white cursor-pointer"
+            className="rounded bg-[#1d2464] px-4 py-2 text-xs font-bold text-white hover:bg-[#ff823d] transition-colors cursor-pointer"
           >
             ADD
           </button>
           <button
             type="button"
             onClick={() => navigate("/dashboard/manage/admin-users")}
-            className="rounded bg-[#1d2464] px-4 py-2 text-xs text-white cursor-pointer"
+            className="rounded bg-[#1d2464] px-4 py-2 text-xs font-bold text-white hover:bg-[#ff823d] transition-colors cursor-pointer"
           >
             CANCEL
           </button>

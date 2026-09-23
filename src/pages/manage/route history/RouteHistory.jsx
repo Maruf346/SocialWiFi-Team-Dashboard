@@ -125,8 +125,8 @@ const RouteHistory = () => {
   }
 
   return (
-    <main className="team-users-page min-h-full  px-2 py-3 text-sm text-[#777] md:px-5 md:py-4">
-      <h1 className="mb-4 text-xl font-normal text-[#999]">Team route history</h1>
+    <main className="team-users-page min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
+      <h1 className="mb-8 text-xl font-normal text-[#999] md:text-2xl">Team route history</h1>
 
       <button
         type="button"

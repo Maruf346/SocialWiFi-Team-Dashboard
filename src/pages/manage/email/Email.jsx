@@ -25,8 +25,8 @@ const Email = () => {
   }
 
   return (
-    <div className="min-h-full px-1 py-2 text-[#2d2d2d]">
-      <h1 className="mb-5 text-[1.8rem] font-light leading-none tracking-[-0.04em] text-[#2d2d2d]">
+    <div className="min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
+      <h1 className="mb-8 text-xl font-normal text-[#999] md:text-2xl">
         Email/Password
       </h1>
 

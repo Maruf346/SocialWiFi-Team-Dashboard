@@ -1,23 +1,39 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { CheckCircle2, X } from 'lucide-react'
 import { Icons } from '../../assets/Images'
 
 const VerifyOtp = () => {
   const navigate = useNavigate()
+  const [showResentToast, setShowResentToast] = useState(false)
+
+  const handleResendCode = () => {
+    setShowResentToast(true)
+    setTimeout(() => {
+      setShowResentToast(false)
+    }, 3500)
+  }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <header className="flex h-16 items-center bg-[#0b0d2d] px-5 md:h-[72px] md:px-10">
-        <img
-          src={Icons.headerLogo}
-          alt="Right Route"
-          className="h-12 w-auto object-contain md:h-14"
-        />
-      </header>
-
-      <div className="h-7 bg-[#ff823d]" />
+    <div className="relative min-h-screen bg-black text-white">
+      {/* Code Resent Toast Popup */}
+      {showResentToast && (
+        <div className="fixed top-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-950/90 px-4 py-2.5 text-sm font-medium text-emerald-200 shadow-xl backdrop-blur-sm animate-in fade-in slide-in-from-top-4 duration-300">
+          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+          <span>Code resent successfully</span>
+          <button
+            type="button"
+            onClick={() => setShowResentToast(false)}
+            className="ml-2 text-emerald-400 hover:text-emerald-200"
+            aria-label="Close notification"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       <main
-        className="flex min-h-[calc(100vh-7rem)] items-center justify-center bg-cover bg-center px-4 pb-16"
+        className="flex min-h-screen items-center justify-center bg-cover bg-center px-4 py-8"
         style={{ backgroundImage: `url(${Icons.authBg})` }}
       >
         <section className="flex w-full max-w-[390px] flex-col items-center">
@@ -52,11 +68,15 @@ const VerifyOtp = () => {
             />
             <button
               type="submit"
-              className="mb-3 h-9 w-24 bg-[#ff823d] text-xs text-white cursor-pointer"
+              className="mb-3 h-9 w-24 rounded-[6px] bg-[#ff823d] text-xs font-semibold uppercase tracking-wider text-white transition hover:brightness-95 cursor-pointer"
             >
               CONFIRM
             </button>
-            <button type="button" className="text-xs text-white underline underline-offset-2 cursor-pointer">
+            <button
+              type="button"
+              onClick={handleResendCode}
+              className="text-xs text-white underline underline-offset-2 cursor-pointer hover:text-[#ff823d] transition-colors"
+            >
               Resend code
             </button>
           </form>

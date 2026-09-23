@@ -1,7 +1,7 @@
 const TermsOfUse = () => {
   return (
     <div className="max-w-5xl text-justify text-gray-600">
-      <h1 className="text-2xl font-medium mb-4 text-black/40">
+      <h1 className="mb-8 text-xl font-normal text-[#999] md:text-2xl">
         Terms of Service
       </h1>
       <div className="space-y-5 leading-relaxed">
