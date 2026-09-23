@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'rightroute_admin_users';
+const STORAGE_KEY = 'rightroute_admin_users_v3';
 
 export const initialAdminUsers = [
   {
@@ -37,6 +37,33 @@ export const initialAdminUsers = [
     status: 'Allowed',
     isSuperAdmin: false,
   },
+  {
+    id: 'USR-3001',
+    name: 'Jane Smith',
+    role: 'Route Auditor',
+    email: 'janesmith@gmail.com',
+    phone: '612-123-4567',
+    status: 'Allowed',
+    isSuperAdmin: false,
+  },
+  {
+    id: 'USR-4002',
+    name: 'Bob Johnson',
+    role: 'User Mgmt',
+    email: 'bobjohnson@gmail.com',
+    phone: '612-123-4567',
+    status: 'Allowed',
+    isSuperAdmin: false,
+  },
+  {
+    id: 'USR-5003',
+    name: 'Alice Williams',
+    role: 'Route Auditor',
+    email: 'alicewilliams@gmail.com',
+    phone: '612-123-4567',
+    status: 'Allowed',
+    isSuperAdmin: false,
+  }
 ];
 
 export const getAdminUsers = () => {
@@ -46,7 +73,12 @@ export const getAdminUsers = () => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(initialAdminUsers));
       return initialAdminUsers;
     }
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!Array.isArray(parsed)) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(initialAdminUsers));
+      return initialAdminUsers;
+    }
+    return parsed;
   } catch {
     return initialAdminUsers;
   }

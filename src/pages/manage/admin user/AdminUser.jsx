@@ -9,9 +9,6 @@ import {
 
 const currentSuperAdminId = 'USR-1001'
 
-const actionButtonClass =
-  'rounded-full bg-[#707070] hover:bg-[#5e5e5e] px-4 py-1.5 text-center text-[11px] font-bold text-white tracking-wider cursor-pointer inline-flex items-center gap-1 transition-colors'
-
 const AdminUser = () => {
   const [adminUsers, setAdminUsers] = useState([])
   const [selectedUsers, setSelectedUsers] = useState([])
@@ -88,28 +85,34 @@ const AdminUser = () => {
     setSelectedAction('')
   }
 
+  // Total visible rows should be at least 7 to match mockup
+  const emptyRowsCount = Math.max(0, 7 - adminUsers.length)
+
   return (
     <div className="min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-xl font-normal text-[#999] md:text-2xl">Admin user list</h1>
+      {/* Title & Add Button */}
+      <div className="mb-7 flex items-center justify-between">
+        <h1 className="text-[22px] font-normal text-[#999]">Admin user list</h1>
         <button
           type="button"
           onClick={() => navigate('/dashboard/manage/admin-users/add-user')}
-          className={actionButtonClass}
+          className="inline-flex items-center gap-1.5 rounded-full bg-[#707070] px-3.5 py-1.5 text-[11px] font-bold tracking-wider text-white transition-colors hover:bg-[#5a5a5a] cursor-pointer"
         >
-          ADD ADMIN USER <span className="text-sm font-black leading-none">+</span>
+          <span>ADD ADMIN USER</span>
+          <span className="text-sm font-black leading-none">+</span>
         </button>
       </div>
 
-      <div className="mb-2 flex items-center gap-1.5 text-[11px]">
-        <label htmlFor="admin-action">Action:</label>
+      {/* Action Toolbar */}
+      <div className="mb-3.5 flex items-center gap-2 text-[12px] text-[#555]">
+        <label htmlFor="admin-action" className="font-normal text-[#555]">Action:</label>
         <select
           id="admin-action"
           value={selectedAction}
           onChange={(event) => setSelectedAction(event.target.value)}
-          className="h-6 w-44 border border-[#ccc] bg-white px-1 text-[11px] text-[#777] outline-none"
+          className="h-[26px] w-52 rounded-[2px] border border-[#b5b5b5] bg-white px-2 text-[12px] text-[#555] outline-none"
         >
-          <option value="">-----------</option>
+          <option value="">---------</option>
           <option value="delete-user">Delete user</option>
           <option value="lock-user">Lock out user</option>
           <option value="unlock-user">Unlock user</option>
@@ -117,31 +120,33 @@ const AdminUser = () => {
         <button
           type="button"
           onClick={applyAction}
-          className="h-6 rounded-sm border border-[#ccc] bg-[#f2f2f2] px-2.5 text-[10px] text-[#555] hover:bg-[#e8e8e8] cursor-pointer"
+          className="h-[26px] rounded-[3px] border border-[#b5b5b5] bg-[#ebebeb] px-2.5 text-[11px] font-normal text-[#333] transition-colors hover:bg-[#dedede] cursor-pointer"
         >
           Go
         </button>
-        <span className="ml-2 text-[#777]">
+        <span className="ml-1 text-[12px] text-[#666]">
           {selectedUsers.length} of {adminUsers.length} selected
         </span>
       </div>
 
+      {/* User Table */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[650px] border-collapse text-left text-[11px]">
+        <table className="w-full min-w-[700px] border-collapse text-left text-[12px]">
           <thead>
-            <tr className="h-7 bg-[#f5f5f5] text-[10px] font-semibold uppercase text-[#999]">
-              <th className="w-8 px-2">
+            <tr className="h-9 bg-[#f5f5f5] text-[11px] font-bold uppercase tracking-wider text-[#777]">
+              <th className="w-10 px-3 text-left">
                 <input
                   type="checkbox"
                   checked={adminUsers.length > 0 && selectedUsers.length === adminUsers.length}
                   onChange={toggleAllUsers}
                   aria-label="Select all admin users"
+                  className="h-4 w-4 rounded-[3px] border-[#ccc] cursor-pointer align-middle"
                 />
               </th>
-              <th className="px-2 font-bold tracking-wider">ADMIN USERS</th>
-              <th className="px-2 font-bold tracking-wider">USER ROLE</th>
-              <th className="px-2 font-bold tracking-wider">USER ID</th>
-              <th className="px-2 font-bold tracking-wider">ACCESS STATUS</th>
+              <th className="px-3 font-bold tracking-wider text-[#777]">ADMIN USERS</th>
+              <th className="px-3 font-bold tracking-wider text-[#777]">USER ROLE</th>
+              <th className="px-3 font-bold tracking-wider text-[#777]">USER ID</th>
+              <th className="px-3 font-bold tracking-wider text-[#777]">ACCESS STATUS</th>
             </tr>
           </thead>
           <tbody>
@@ -150,30 +155,58 @@ const AdminUser = () => {
               return (
                 <tr
                   key={user.id}
-                  className={`h-7 border-b border-[#ececec] ${
+                  className={`h-10 border-b border-[#ececec] transition-colors ${
                     isEvenRow ? 'bg-[#f5f5f5]' : 'bg-white'
                   }`}
                 >
-                  <td className="px-2">
+                  <td className="px-3 align-middle">
                     <input
                       type="checkbox"
                       checked={selectedUsers.includes(user.id)}
                       onChange={() => toggleUser(user.id)}
                       aria-label={`Select ${user.name}`}
+                      className="h-4 w-4 rounded-[3px] border-[#ccc] cursor-pointer align-middle"
                     />
                   </td>
-                  <td className="px-2">
+                  <td className="px-3 align-middle">
                     <button
                       type="button"
                       onClick={() => navigate(`/dashboard/manage/admin-users/edit/${user.id}`)}
-                      className="text-[#3b5998] hover:underline cursor-pointer"
+                      className="text-[12px] font-normal text-[#444] underline underline-offset-2 transition-colors hover:text-[#111] cursor-pointer"
                     >
                       {user.name}
                     </button>
                   </td>
-                  <td className="px-2 text-[#555]">{user.role}</td>
-                  <td className="px-2 text-[#555]">{user.id}</td>
-                  <td className="px-2 text-[#555]">{user.status}</td>
+                  <td className="px-3 align-middle text-[12px] text-[#555]">{user.role}</td>
+                  <td className="px-3 align-middle text-[12px] text-[#555]">{user.id}</td>
+                  <td className="px-3 align-middle text-[12px] text-[#555]">{user.status}</td>
+                </tr>
+              )
+            })}
+
+            {/* Empty filler rows with checkboxes matching mockup */}
+            {Array.from({ length: emptyRowsCount }).map((_, index) => {
+              const rowIndex = adminUsers.length + index
+              const isEvenRow = rowIndex % 2 === 1
+              return (
+                <tr
+                  key={`empty-row-${index}`}
+                  className={`h-10 border-b border-[#ececec] ${
+                    isEvenRow ? 'bg-[#f5f5f5]' : 'bg-white'
+                  }`}
+                >
+                  <td className="px-3 align-middle">
+                    <input
+                      type="checkbox"
+                      disabled
+                      aria-label="Empty row checkbox"
+                      className="h-4 w-4 rounded-[3px] border-[#ccc] opacity-30 cursor-default align-middle"
+                    />
+                  </td>
+                  <td className="px-3 align-middle"></td>
+                  <td className="px-3 align-middle"></td>
+                  <td className="px-3 align-middle"></td>
+                  <td className="px-3 align-middle"></td>
                 </tr>
               )
             })}
@@ -181,7 +214,8 @@ const AdminUser = () => {
         </table>
       </div>
 
-      <p className="mt-3 border-b border-[#eee] pb-3 text-[11px] text-[#777]">
+      {/* Row count summary */}
+      <p className="mt-4 border-b border-[#e0e0e0] pb-3 text-[12px] text-[#666]">
         {adminUsers.length} admin users
       </p>
     </div>
