@@ -336,7 +336,7 @@ const TeamUser = () => {
                     EDIT/<br className="sm:hidden" />VIEW
                   </th>
                   <th className="w-28 px-4 py-1 text-center font-semibold tracking-wider">
-                    ROUTE<br className="sm:hidden" />HISTORY
+                    ROUTE <br className="sm:hidden" />HISTORY
                   </th>
                 </tr>
               </thead>
