@@ -18,15 +18,21 @@ const Header = ({ onMenuClick }) => {
         <img
           src={Icons.headerLogo}
           alt="Right Route"
-          className="h-11 w-auto object-contain md:h-14"
+          className="w-[185px] py-[10px] object-contain"
         />
       </div>
 
       <nav className="hidden items-center gap-2 text-xs uppercase text-white md:flex lg:text-sm">
         <span>Welcome, admin@gmail.com.</span>
-        <a href="#view-site" className="underline underline-offset-2">
+        <a 
+          href="https://getrightroute.app" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="underline underline-offset-2"
+        >
           View site
         </a>
+
         <span>/</span>
         <a href="#change-password" className="underline underline-offset-2">
           Change password

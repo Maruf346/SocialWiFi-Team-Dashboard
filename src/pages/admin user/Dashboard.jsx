@@ -5,7 +5,7 @@ const Dashboard = () => {
     <div className="flex items-center justify-center  px-4 py-12">
       <section className="flex w-full max-w-2xl flex-col items-center text-center">
         <img
-          src={Icons.authMainLogo}
+          src={Icons.DBoardMainLogo}
           alt="Right Route"
           className="mb-5 h-auto w-48 object-contain md:w-56"
         />
