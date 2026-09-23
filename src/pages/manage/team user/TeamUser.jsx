@@ -2,129 +2,211 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { History, Pencil, Upload, X } from "lucide-react";
 import { useNavigate } from "react-router";
 
-const initialUsers = [
-  ["Ethan Caldwell", "ethancaldwell@gmail.com", true],
-  ["Marcus Bennett", "marcusbennett@yahoo.com", true],
-  ["Daniel Reed", "danielreed@outlook.com", true],
-  ["Nathan Parker", "nathanparker@hotmail.com", false],
-  ["Lucas Foster", "lucasfoster@icloud.com", true],
-  ["Adrian Collins", "adriancollins@gmail.com", true],
-  ["Caleb Brooks", "calebbrooks@yahoo.com", true],
-  ["Julian Ramirez", "julianramirez@outlook.com", true],
-  ["Owen Mitchell", "owenmitchell@hotmail.com", false],
-  ["Miles Sullivan", "milessullivan@icloud.com", true],
-  ["Simon Turner", "simonturner@gmail.com", true],
-  ["Henry Morgan", "henrymorgan@yahoo.com", true],
-  ["Noah Harrison", "noahharrison@outlook.com", true],
-  ["Liam Jenkins", "liamjenkins@hotmail.com", false],
-  ["Samuel Hayes", "samuelhayes@icloud.com", true],
-  ["Benjamin Cooper", "benjamincooper@gmail.com", true],
-  ["Isaac Richardson", "isaacrichardson@yahoo.com", true],
-  ["Thomas Thompson", "thomasthompson@outlook.com", true],
-  ["Jack Anderson", "jackanderson@hotmail.com", true],
-  ["Leo Carter", "leocarter@icloud.com", false],
-];
-
-const initialAvailable = [
-  ["Landon Pierce", "landonpierce@gmail.com"],
-  ["Derek Lawson", "dereklawson@yahoo.com"],
-  ["Trevor Miles", "trevormiles@outlook.com"],
-  ["Colin Mercer", "colinmercer@hotmail.com"],
-  ["Brandon Keller", "brandonkeller@icloud.com"],
-  ["Evan Rhodes", "evanrhodes@gmail.com"],
-  ["Gavin Porter", "gavinporter@yahoo.com"],
-  ["Mason Clarke", "masonclarke@outlook.com"],
-  ["Tyler Benson", "tylerbenson@hotmail.com"],
-  ["Jordan Reeves", "jordanreeves@icloud.com"],
-  ["Cameron Ellis", "cameronellis@gmail.com"],
-  ["Austin Grant", "austingrant@yahoo.com"],
-  ["Blake Warren", "blakewarren@outlook.com"],
+const initialTeamUsers = [
+  { id: 1, name: "Ethan Caldwell", email: "ethancaldwell@gmail.com", enrolled: true },
+  { id: 2, name: "Marcus Bennett", email: "marcusbennett@yahoo.com", enrolled: true },
+  { id: 3, name: "Daniel Reed", email: "danielreed@outlook.com", enrolled: true },
+  { id: 4, name: "Nathan Parker", email: "nathanparker@hotmail.com", enrolled: false },
+  { id: 5, name: "Lucas Foster", email: "lucasfoster@icloud.com", enrolled: true },
+  { id: 6, name: "Adrian Collins", email: "adriancollins@gmail.com", enrolled: true },
+  { id: 7, name: "Caleb Brooks", email: "calebbrooks@yahoo.com", enrolled: true },
+  { id: 8, name: "Julian Ramirez", email: "julianramirez@outlook.com", enrolled: true },
+  { id: 9, name: "Owen Mitchell", email: "owenmitchell@hotmail.com", enrolled: false },
+  { id: 10, name: "Miles Sullivan", email: "milessullivan@icloud.com", enrolled: true },
+  { id: 11, name: "Simon Turner", email: "simonturner@gmail.com", enrolled: true },
+  { id: 12, name: "Henry Morgan", email: "henrymorgan@yahoo.com", enrolled: true },
+  { id: 13, name: "Noah Harrison", email: "noahharrison@outlook.com", enrolled: true },
+  { id: 14, name: "Liam Jenkins", email: "liamjenkins@hotmail.com", enrolled: false },
+  { id: 15, name: "Samuel Hayes", email: "samuelhayes@icloud.com", enrolled: true },
+  { id: 16, name: "Benjamin Cooper", email: "benjamincooper@gmail.com", enrolled: true },
+  { id: 17, name: "Isaac Richardson", email: "isaacrichardson@yahoo.com", enrolled: true },
+  { id: 18, name: "Thomas Thompson", email: "thomasthompson@outlook.com", enrolled: true },
+  { id: 19, name: "Jack Anderson", email: "jackanderson@hotmail.com", enrolled: true },
+  { id: 20, name: "Leo Carter", email: "leocarter@icloud.com", enrolled: false },
 ];
 
 const TeamUser = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
-  const [users, setUsers] = useState(initialUsers);
-  const [availableUsers, setAvailableUsers] = useState(initialAvailable);
-  const [selected, setSelected] = useState([]);
+
+  const [users, setUsers] = useState(initialTeamUsers);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [activeUserId, setActiveUserId] = useState(null);
+
   const [filterInput, setFilterInput] = useState("All");
   const [filter, setFilter] = useState("All");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [editUser, setEditUser] = useState(null);
-  const [importOpen, setImportOpen] = useState(false);
-  const [message, setMessage] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
+  const [importOpen, setImportOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+
+  // Edit form state for side panel
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    email: "",
+    enrolled: false,
+  });
+
+  const activeUser = useMemo(() => {
+    return users.find((u) => u.id === activeUserId) || null;
+  }, [users, activeUserId]);
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(""), 2500);
+  };
+
+  const handleSelectUser = (user) => {
+    setActiveUserId(user.id);
+    setEditFormData({
+      name: user.name,
+      email: user.email,
+      enrolled: user.enrolled,
+    });
+    if (!selectedIds.includes(user.id)) {
+      setSelectedIds([user.id]);
+    }
+  };
+
+  // Sync external enrollment changes
   useEffect(() => {
     const syncEnrollment = (event) => {
       if (event.key !== "team-users-enrollment" || !event.newValue) return;
       const update = JSON.parse(event.newValue);
       setUsers((current) =>
         current.map((user) =>
-          user[1] === update.email ? [user[0], user[1], update.enrolled] : user,
-        ),
+          user.email === update.email ? { ...user, enrolled: update.enrolled } : user
+        )
       );
     };
     window.addEventListener("storage", syncEnrollment);
     return () => window.removeEventListener("storage", syncEnrollment);
   }, []);
 
-  const visibleUsers = useMemo(
-    () =>
-      users.filter(([name, email, enrolled]) => {
-        const matchesFilter =
-          filter === "All" || (filter === "Yes" ? enrolled : !enrolled);
-        return (
-          matchesFilter &&
-          `${name} ${email}`.toLowerCase().includes(search.toLowerCase())
-        );
-      }),
-    [filter, search, users],
-  );
-  const selectedVisible =
-    visibleUsers.every((user) => selected.includes(users.indexOf(user))) &&
-    visibleUsers.length > 0;
-  const enrolledTotal = users.filter((user) => user[2]).length;
-  const showMessage = (text) => {
-    setMessage(text);
-    window.setTimeout(() => setMessage(""), 2400);
+  // Filter & Search Logic
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => {
+      const matchSearch =
+        user.name.toLowerCase().includes(search.toLowerCase()) ||
+        user.email.toLowerCase().includes(search.toLowerCase());
+
+      if (!matchSearch) return false;
+
+      if (filter === "All") return true;
+      if (filter === "Yes") return user.enrolled === true;
+      if (filter === "No") return user.enrolled === false;
+      return true;
+    });
+  }, [users, search, filter]);
+
+  const enrolledTotal = useMemo(() => {
+    return users.filter((u) => u.enrolled).length;
+  }, [users]);
+
+  const isAllVisibleSelected =
+    filteredUsers.length > 0 &&
+    filteredUsers.every((u) => selectedIds.includes(u.id));
+
+  const handleToggleSelectAll = (checked) => {
+    if (checked) {
+      const allVisibleIds = filteredUsers.map((u) => u.id);
+      setSelectedIds(Array.from(new Set([...selectedIds, ...allVisibleIds])));
+    } else {
+      const visibleIdSet = new Set(filteredUsers.map((u) => u.id));
+      setSelectedIds(selectedIds.filter((id) => !visibleIdSet.has(id)));
+    }
   };
-  const toggleAll = (checked) =>
-    setSelected(checked ? visibleUsers.map((user) => users.indexOf(user)) : []);
-  const removeSelected = () => {
-    setUsers((current) =>
-      current.filter((_, index) => !selected.includes(index)),
+
+  const handleToggleSelectRow = (id, event) => {
+    event.stopPropagation();
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
-    setSelected([]);
-    showMessage("Selected users and their access were removed");
   };
-  const downloadCsv = () => {
-    const csv = [["Name", "Email", "Enrolled"], ...visibleUsers]
-      .map((row) =>
-        row
-          .map((value) => `"${String(value).replaceAll('"', '""')}"`)
-          .join(","),
-      )
-      .join("\n");
+
+  // Table Bottom Action Handlers
+  const handleRemove = () => {
+    if (selectedIds.length === 0) {
+      showToast("No users selected to remove");
+      return;
+    }
+    setUsers((prev) => prev.filter((u) => !selectedIds.includes(u.id)));
+    if (selectedIds.includes(activeUserId)) {
+      setActiveUserId(null);
+    }
+    setSelectedIds([]);
+    showToast("Selected users removed successfully");
+  };
+
+  const handleDownload = () => {
+    const headers = ["Name", "Email", "Enrolled"];
+    const rows = filteredUsers.map((u) => [
+      `"${u.name}"`,
+      `"${u.email}"`,
+      `"${u.enrolled ? "Yes" : "No"}"`,
+    ]);
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    link.download = "team-users.csv";
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "team_users_export.csv");
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(link.href);
+    document.body.removeChild(link);
+    showToast("User list downloaded as CSV");
   };
-  const saveEdit = (event) => {
-    event.preventDefault();
-    setUsers((current) =>
-      current.map((user) =>
-        user[1] === editUser.originalEmail
-          ? [editUser.name, editUser.email, editUser.enrolled]
-          : user,
-      ),
+
+  const handleReset = () => {
+    setFilterInput("All");
+    setFilter("All");
+    setSearchInput("");
+    setSearch("");
+    setSelectedIds([]);
+    setActiveUserId(null);
+    showToast("Filters and selection reset");
+  };
+
+  // Side Panel Save & Cancel
+  const handleSaveUserInfo = (e) => {
+    e.preventDefault();
+    if (!activeUser) {
+      showToast("Please select a user first");
+      return;
+    }
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === activeUser.id
+          ? {
+              ...u,
+              name: editFormData.name,
+              email: editFormData.email,
+              enrolled: editFormData.enrolled,
+            }
+          : u
+      )
     );
-    setEditUser(null);
-    showMessage("User details updated");
+    showToast("User details saved successfully");
   };
-  const importCsv = (event) => {
+
+  const handleCancelUserInfo = () => {
+    if (activeUser) {
+      setEditFormData({
+        name: activeUser.name,
+        email: activeUser.email,
+        enrolled: activeUser.enrolled,
+      });
+      showToast("Changes discarded");
+    } else {
+      setActiveUserId(null);
+    }
+  };
+
+  // CSV Import Handlers
+  const handleImportCsv = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -133,340 +215,355 @@ const TeamUser = () => {
         .split(/\r?\n/)
         .slice(1)
         .map((row) =>
-          row.split(",").map((value) => value.trim().replace(/^"|"$/g, "")),
+          row.split(",").map((value) => value.trim().replace(/^"|"$/g, ""))
         )
         .filter((row) => row[0] && row[1]);
-      setAvailableUsers(rows.map(([name, email]) => [name, email]));
+
+      const newUsers = rows.map(([name, email], idx) => ({
+        id: Date.now() + idx,
+        name,
+        email,
+        enrolled: false,
+      }));
+
+      setUsers((prev) => [...prev, ...newUsers]);
       setImportOpen(false);
-      showMessage(`${rows.length} users imported`);
+      showToast(`${rows.length} users imported successfully`);
     };
     reader.readAsText(file);
     event.target.value = "";
   };
-  const addImported = () => {
-    setUsers((current) => [
-      ...current,
-      ...availableUsers.map(([name, email]) => [name, email, false]),
-    ]);
-    setAvailableUsers([]);
-    showMessage("Imported users added to the list");
-  };
 
   return (
     <main className="team-users-page min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
-      <h1 className="mb-8 text-xl font-normal text-[#999] md:text-2xl">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-5 right-5 z-50 rounded bg-[#151d56] px-4 py-2.5 text-sm text-white shadow-lg transition-all">
+          {toastMessage}
+        </div>
+      )}
+
+      {/* Header Title & Meta Info */}
+      <h1 className="mb-4 text-xl font-normal text-[#999] md:text-2xl">
         Manage team users
       </h1>
-      <div className="mb-4 space-y-1 font-semibold text-[#333]">
+
+      <div className="mb-4 space-y-0.5 text-xs font-bold text-[#333]">
         <p>Plan: Up to 500 users</p>
         <p>Total in list: {users.length}</p>
         <p>Enrolled user total: {enrolledTotal}</p>
       </div>
-      <div className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
-        <section className="min-w-0">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <label>
-              Filter:{" "}
+
+      {/* Main Grid: Left Table & Right Side Panel */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_1fr] 2xl:grid-cols-[1.6fr_1fr]">
+        {/* Left Column: Filter/Search, Table, Pagination, Action Buttons */}
+        <section className="flex flex-col min-w-0">
+          {/* Filters & Search Row */}
+          <div className="mb-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[#666]">Filter:</span>
               <select
                 value={filterInput}
-                onChange={(event) => setFilterInput(event.target.value)}
-                className="ml-1 h-7 w-20 border border-[#ccc] bg-white px-1"
+                onChange={(e) => setFilterInput(e.target.value)}
+                className="h-6 rounded border border-[#ccc] bg-white px-1 text-xs outline-none"
               >
-                <option>All</option>
-                <option>Yes</option>
-                <option>No</option>
+                <option value="All">All</option>
+                <option value="Yes">Enrolled (Yes)</option>
+                <option value="No">Not Enrolled (No)</option>
               </select>
-            </label>
-            <button
-              type="button"
-              onClick={() => setFilter(filterInput)}
-              className="h-7 rounded border border-[#ccc] bg-[#f4f4f4] px-2 cursor-pointer"
-            >
-              Go
-            </button>
-            <label className="ml-auto">
-              Search:{" "}
+              <button
+                type="button"
+                onClick={() => setFilter(filterInput)}
+                className="h-6 rounded border border-[#ccc] bg-[#efefef] px-2.5 text-xs font-normal text-[#333] hover:bg-[#e4e4e4] active:bg-[#d5d5d5] cursor-pointer"
+              >
+                Go
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[#666]">Search:</span>
               <input
+                type="text"
                 value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                className="ml-1 h-7 w-32 border border-[#ccc] px-2 outline-none md:w-40"
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && setSearch(searchInput.trim())}
+                placeholder="Search by name or email"
+                className="h-6 w-36 rounded border border-[#ccc] bg-white px-2 text-xs outline-none md:w-44"
               />
-            </label>
-            <button
-              type="button"
-              onClick={() => setSearch(searchInput.trim())}
-              className="h-7 rounded border border-[#ccc] bg-[#f4f4f4] px-2 cursor-pointer"
-            >
-              Go
-            </button>
+              <button
+                type="button"
+                onClick={() => setSearch(searchInput.trim())}
+                className="h-6 rounded border border-[#ccc] bg-[#efefef] px-2.5 text-xs font-normal text-[#333] hover:bg-[#e4e4e4] active:bg-[#d5d5d5] cursor-pointer"
+              >
+                Go
+              </button>
+            </div>
           </div>
+
+          {/* Table Container */}
           <div className="overflow-x-auto border border-[#eee]">
-            <table className="w-full min-w-[590px] border-collapse text-left">
+            <table className="w-full min-w-[580px] border-collapse text-left text-xs">
               <thead>
-                <tr className="h-8 bg-[#f3f3f3] uppercase text-[#999]">
-                  <th className="w-7 px-1">
+                <tr className="h-8 border-b border-[#eee] bg-[#f3f3f3] uppercase text-[#888] font-normal">
+                  <th className="w-8 px-2 text-center">
                     <input
                       type="checkbox"
-                      checked={selectedVisible}
-                      onChange={(event) => toggleAll(event.target.checked)}
-                      aria-label="Select visible team users"
+                      checked={isAllVisibleSelected}
+                      onChange={(e) => handleToggleSelectAll(e.target.checked)}
+                      className="cursor-pointer accent-[#ff823d]"
+                      aria-label="Select all team users"
                     />
                   </th>
-                  <th className="px-2">Name</th>
-                  <th className="px-2">Email</th>
-                  <th className="px-2">Enrolled</th>
-                  <th className="w-9 px-1">Edit</th>
-                  <th className="w-12 px-1">Route history</th>
+                  <th className="px-3 py-1 font-semibold tracking-wider">NAME</th>
+                  <th className="px-3 py-1 font-semibold tracking-wider">EMAIL</th>
+                  <th className="px-3 py-1 font-semibold tracking-wider">ENROLLED</th>
+                  <th className="w-14 px-2 py-1 text-center font-semibold tracking-wider">EDIT</th>
+                  <th className="w-16 px-2 py-1 text-center font-semibold tracking-wider">ROUTE <br className="sm:hidden" />HISTORY</th>
                 </tr>
               </thead>
               <tbody>
-                {visibleUsers.map((user) => {
-                  const index = users.indexOf(user);
-                  return (
-                    <tr
-                      key={user[1]}
-                      className="h-8 border-b border-white even:bg-[#f7f7f7]"
-                    >
-                      <td className="px-1">
-                        <input
-                          type="checkbox"
-                          checked={selected.includes(index)}
-                          onChange={() =>
-                            setSelected((current) =>
-                              current.includes(index)
-                                ? current.filter((item) => item !== index)
-                                : [...current, index],
-                            )
-                          }
-                          aria-label={`Select ${user[0]}`}
-                        />
-                      </td>
-                      <td className="px-2">{user[0]}</td>
-                      <td className="px-2">{user[1]}</td>
-                      <td className="px-2">{user[2] ? "Yes" : "No"}</td>
-                      <td className="px-1">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setEditUser({
-                              name: user[0],
-                              email: user[1],
-                              originalEmail: user[1],
-                              enrolled: user[2],
-                            })
-                          }
-                          aria-label={`Edit ${user[0]}`}
-                        >
-                          <Pencil size={17} />
-                        </button>
-                      </td>
-                      <td className="px-1">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            navigate(
-                              `/dashboard/manage/team-route-history`,
-                            )
-                          }
-                          aria-label={`Route history for ${user[0]}`}
-                        >
-                          <History size={18} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-[#888]">
+                      No team users found matching criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((user) => {
+                    const isSelected = selectedIds.includes(user.id);
+                    const isActive = activeUserId === user.id;
+                    return (
+                      <tr
+                        key={user.id}
+                        onClick={() => handleSelectUser(user)}
+                        className={`h-8 border-b border-[#f0f0f0] cursor-pointer transition-colors ${
+                          isActive
+                            ? "bg-[#fff3eb]"
+                            : isSelected
+                            ? "bg-[#fef8f4]"
+                            : "even:bg-[#f9f9f9] hover:bg-[#f5f5f5]"
+                        }`}
+                      >
+                        <td className="px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => handleToggleSelectRow(user.id, e)}
+                            className="cursor-pointer accent-[#ff823d]"
+                            aria-label={`Select ${user.name}`}
+                          />
+                        </td>
+                        <td className="px-3 py-1 font-normal text-[#444] whitespace-nowrap">
+                          {user.name}
+                        </td>
+                        <td className="px-3 py-1 text-[#666] whitespace-nowrap">
+                          {user.email}
+                        </td>
+                        <td className="px-3 py-1 text-[#666] whitespace-nowrap">
+                          {user.enrolled ? "Yes" : "No"}
+                        </td>
+                        <td className="px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectUser(user)}
+                            className="text-[#777] hover:text-[#ff823d] p-0.5 cursor-pointer inline-flex items-center justify-center"
+                            aria-label={`Edit ${user.name}`}
+                          >
+                            <Pencil size={15} />
+                          </button>
+                        </td>
+                        <td className="px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate(
+                                `/dashboard/manage/team-route-history`
+                              )
+                            }
+                            className="text-[#777] hover:text-[#ff823d] p-0.5 cursor-pointer inline-flex items-center justify-center"
+                            aria-label={`Route history for ${user.name}`}
+                          >
+                            <History size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
-          <div className="flex flex-wrap justify-between border-b border-[#eee] py-2">
-            <span>
-              {selected.length} of {users.length} selected
-            </span>
-            <span>
-              1-{visibleUsers.length} of {users.length} users
-            </span>
-            <span className="underline">
-              Previous&nbsp; 1&nbsp; 2&nbsp; 3&nbsp; Next
-            </span>
+
+          {/* Table Bottom Meta & Pagination */}
+          <div className="flex flex-wrap items-center justify-between border-b border-[#eee] py-2 text-xs text-[#777]">
+            <span>{selectedIds.length} of {users.length} selected</span>
+            <span>1-{filteredUsers.length} of {users.length} users</span>
+            <div className="flex items-center gap-1.5 underline cursor-pointer">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                className="hover:text-black cursor-pointer"
+              >
+                Previous
+              </button>
+              <span
+                onClick={() => setCurrentPage(1)}
+                className={`px-0.5 cursor-pointer ${currentPage === 1 ? "font-bold text-black" : ""}`}
+              >
+                1
+              </span>
+              <span
+                onClick={() => setCurrentPage(2)}
+                className={`px-0.5 cursor-pointer ${currentPage === 2 ? "font-bold text-black" : ""}`}
+              >
+                2
+              </span>
+              <span
+                onClick={() => setCurrentPage(3)}
+                className={`px-0.5 cursor-pointer ${currentPage === 3 ? "font-bold text-black" : ""}`}
+              >
+                3
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(currentPage + 1)}
+                className="hover:text-black cursor-pointer"
+              >
+                Next
+              </button>
+            </div>
           </div>
-          <div className="mt-4 flex gap-2 rounded-lg border border-[#e7e7e7] bg-[#fafafa] p-2">
+
+          {/* Table Action Buttons */}
+          <div className="mt-4 flex flex-wrap items-center gap-2.5 rounded-lg border border-[#e7e7e7] bg-[#fafafa] p-2.5">
             <button
               type="button"
-              onClick={removeSelected}
-              className="rounded bg-[#ff823d] px-3 py-1.5 text-white cursor-pointer"
+              onClick={handleRemove}
+              className="rounded bg-[#ff823d] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#e56f2d] cursor-pointer"
             >
               REMOVE
             </button>
             <button
               type="button"
-              onClick={downloadCsv}
-              className="rounded bg-[#151d56] px-3 py-1.5 text-white cursor-pointer"
+              onClick={handleDownload}
+              className="rounded bg-[#151d56] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0e143d] cursor-pointer"
             >
               DOWNLOAD
             </button>
             <button
               type="button"
-              onClick={() => {
-                setFilterInput("All");
-                setFilter("All");
-                setSearchInput("");
-                setSearch("");
-                setSelected([]);
-              }}
-              className="rounded bg-[#151d56] px-3 py-1.5 text-white cursor-pointer"
+              onClick={handleReset}
+              className="rounded bg-[#151d56] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0e143d] cursor-pointer"
             >
-              CANCEL
+              RESET
             </button>
-          </div>
-        </section>
-        <section className="min-w-0">
-          <h2 className="mb-2 font-bold text-[#333]">Add/Edit Users</h2>
-          <div className="border border-[#eee]">
-            <div className="flex items-center border-b border-[#eee] px-3">
-              <input
-                placeholder="TYPE OR IMPORT USERS: FIRST NAME, EMAIL"
-                className="h-9 w-full text-[10px] uppercase outline-none placeholder:text-[#aaa]"
-                readOnly
-              />
-              <button
-                type="button"
-                onClick={() => setAvailableUsers([])}
-                aria-label="Clear imported users"
-              >
-                <X size={14} />
-              </button>
-            </div>
-            <div className="h-[520px] overflow-y-auto px-3">
-              {availableUsers.map(([name, email]) => (
-                <button
-                  type="button"
-                  key={email}
-                  onClick={() =>
-                    setEditUser({
-                      name,
-                      email,
-                      originalEmail: email,
-                      enrolled: false,
-                    })
-                  }
-                  className="block w-full py-2 text-left hover:text-[#ff823d]"
-                >
-                  {name}, {email}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-between border-b border-[#eee] py-2">
-            <span>{availableUsers.length} out of 62 total users remaining</span>
-            <button
-              type="button"
-              onClick={() => navigate("/dashboard")}
-              className="underline"
-            >
-              Upgrade plan
-            </button>
-          </div>
-          <div className="mt-4 flex gap-2 rounded-lg border border-[#e7e7e7] bg-[#fafafa] p-2">
             <button
               type="button"
               onClick={() => setImportOpen(true)}
-              className="rounded bg-[#ff823d] px-3 py-1.5 text-white cursor-pointer" 
+              className="ml-auto flex items-center gap-1.5 rounded bg-[#ff823d] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#e56f2d] cursor-pointer"
             >
-              IMPORT
+              <Upload size={14} />
+              IMPORT CSV
+            </button>
+          </div>
+        </section>
+
+        {/* Right Column: USER INFO / Add & Edit Panel */}
+        <section className="flex flex-col min-w-0">
+          <div className="mb-2 text-xs font-bold uppercase tracking-wider text-[#999]">
+            USER INFO
+          </div>
+
+          {/* Side Panel Content Box */}
+          <div className="flex-1 overflow-y-auto border border-[#ccc] bg-white p-3.5 min-h-[380px] max-h-[610px] text-xs space-y-2.5">
+            {activeUser ? (
+              <form onSubmit={handleSaveUserInfo} id="teamUserInfoForm" className="space-y-3 text-[#555]">
+                <h2 className="text-sm font-bold text-[#222] mb-1">
+                  {activeUser.name}
+                </h2>
+
+                {/* Name field */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                  <label className="w-24 font-bold text-[#333]">Name:</label>
+                  <input
+                    type="text"
+                    value={editFormData.name}
+                    onChange={(e) =>
+                      setEditFormData({ ...editFormData, name: e.target.value })
+                    }
+                    className="h-7 flex-1 rounded-sm border border-[#ccc] px-2 text-xs text-[#444] outline-none focus:border-[#ff823d]"
+                    required
+                  />
+                </div>
+
+                {/* Email field */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                  <label className="w-24 font-bold text-[#333]">Email:</label>
+                  <input
+                    type="email"
+                    value={editFormData.email}
+                    onChange={(e) =>
+                      setEditFormData({ ...editFormData, email: e.target.value })
+                    }
+                    className="h-7 flex-1 rounded-sm border border-[#ccc] px-2 text-xs text-[#444] outline-none focus:border-[#ff823d]"
+                    required
+                  />
+                </div>
+
+                {/* Enrolled Checkbox */}
+                <div className="flex items-center gap-2 pt-1">
+                  <label className="w-24 font-bold text-[#333]">Enrolled:</label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[#444]">
+                    <input
+                      type="checkbox"
+                      checked={editFormData.enrolled}
+                      onChange={(e) =>
+                        setEditFormData({ ...editFormData, enrolled: e.target.checked })
+                      }
+                      className="accent-[#ff823d] cursor-pointer"
+                    />
+                    <span>{editFormData.enrolled ? "Yes (Enrolled)" : "No (Not enrolled)"}</span>
+                  </label>
+                </div>
+              </form>
+            ) : (
+              <div className="flex h-full min-h-[300px] flex-col items-center justify-center text-center text-[#888]">
+                <p className="text-sm">Select an user to edit/view details.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Side Panel Action Buttons */}
+          <div className="mt-4 flex flex-wrap items-center gap-2.5 rounded-lg border border-[#e7e7e7] bg-[#fafafa] p-2.5">
+            <button
+              type="submit"
+              form="teamUserInfoForm"
+              disabled={!activeUser}
+              className={`rounded px-5 py-1.5 text-xs font-semibold text-white transition-colors ${
+                activeUser
+                  ? "bg-[#ff823d] hover:bg-[#e56f2d] cursor-pointer"
+                  : "bg-[#ff823d]/50 cursor-not-allowed"
+              }`}
+            >
+              SAVE
             </button>
             <button
               type="button"
-              onClick={addImported}
-              className="rounded bg-[#ff823d] px-3 py-1.5 text-white cursor-pointer"
-            >
-              ADD
-            </button>
-            <button
-              type="button"
-              onClick={() => setAvailableUsers([])}
-              className="rounded bg-[#151d56] px-3 py-1.5 text-white cursor-pointer"
+              onClick={handleCancelUserInfo}
+              disabled={!activeUser}
+              className={`rounded px-5 py-1.5 text-xs font-semibold text-white transition-colors ${
+                activeUser
+                  ? "bg-[#151d56] hover:bg-[#0e143d] cursor-pointer"
+                  : "bg-[#151d56]/50 cursor-not-allowed"
+              }`}
             >
               CANCEL
             </button>
           </div>
         </section>
       </div>
-      {message && (
-        <p
-          role="status"
-          className="fixed bottom-5 right-5 rounded bg-[#151d56] px-4 py-2 text-white shadow-lg"
-        >
-          {message}
-        </p>
-      )}
-      {editUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <form
-            onSubmit={saveEdit}
-            className="w-full max-w-sm rounded border border-[#ccc] bg-white p-5 shadow-lg"
-          >
-            <div className="mb-4 flex justify-between">
-              <h2 className="font-semibold text-[#444]">Edit user</h2>
-              <button
-                type="button"
-                onClick={() => setEditUser(null)}
-                aria-label="Close edit dialog"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <label className="mb-3 block">
-              Name
-              <input
-                value={editUser.name}
-                onChange={(event) =>
-                  setEditUser({ ...editUser, name: event.target.value })
-                }
-                className="mt-1 h-9 w-full border border-[#ccc] px-2"
-                required
-              />
-            </label>
-            <label className="mb-3 block">
-              Email
-              <input
-                type="email"
-                value={editUser.email}
-                onChange={(event) =>
-                  setEditUser({ ...editUser, email: event.target.value })
-                }
-                className="mt-1 h-9 w-full border border-[#ccc] px-2"
-                required
-              />
-            </label>
-            <label className="mb-4 flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={editUser.enrolled}
-                onChange={(event) =>
-                  setEditUser({ ...editUser, enrolled: event.target.checked })
-                }
-              />{" "}
-              Enrolled
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="rounded bg-[#ff823d] px-3 py-1.5 text-white"
-              >
-                SAVE
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditUser(null)}
-                className="rounded border border-[#bbb] px-3 py-1.5"
-              >
-                CANCEL
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+
+      {/* CSV Import Modal */}
       {importOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div
@@ -475,31 +572,32 @@ const TeamUser = () => {
             className="w-full max-w-sm rounded border border-[#ccc] bg-white p-5 shadow-lg"
           >
             <div className="mb-4 flex justify-between">
-              <h2 className="font-semibold text-[#444]">Import users</h2>
+              <h2 className="font-semibold text-[#444]">Import team users</h2>
               <button
                 type="button"
                 onClick={() => setImportOpen(false)}
                 aria-label="Close import dialog"
+                className="text-[#666] hover:text-[#111]"
               >
                 <X size={18} />
               </button>
             </div>
-            <p className="mb-4 text-sm">
+            <p className="mb-4 text-xs text-[#666]">
               Choose a CSV file containing name and email columns.
             </p>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 rounded bg-[#ff823d] px-3 py-1.5 text-white"
+                className="flex items-center gap-2 rounded bg-[#ff823d] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#e56f2d] cursor-pointer"
               >
-                <Upload size={15} />
+                <Upload size={14} />
                 Choose CSV
               </button>
               <button
                 type="button"
                 onClick={() => setImportOpen(false)}
-                className="cursor-pointer rounded border border-[#bbb] px-3 py-1.5"
+                className="cursor-pointer rounded border border-[#bbb] px-3.5 py-1.5 text-xs font-semibold text-[#555] hover:bg-[#f0f0f0]"
               >
                 Cancel
               </button>
@@ -508,7 +606,7 @@ const TeamUser = () => {
               ref={fileInputRef}
               type="file"
               accept=".csv,text/csv"
-              onChange={importCsv}
+              onChange={handleImportCsv}
               className="hidden"
             />
           </div>
