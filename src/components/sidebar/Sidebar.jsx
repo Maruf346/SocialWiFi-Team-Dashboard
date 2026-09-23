@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router'
+import { NavLink, useLocation, useNavigate } from 'react-router'
 
 const menuGroups = [
   {
@@ -30,7 +30,7 @@ const menuGroups = [
   {
     title: 'SECURITY',
     items: [
-      { label: 'Logout', path: '#' },
+      { label: 'Logout', action: 'logout' },
       { label: 'Data protection', path: '/dashboard/security/data-protection' },
       { label: 'Delete account', path: '/dashboard/security/delete-account' },
     ],
@@ -39,6 +39,11 @@ const menuGroups = [
 
 const Sidebar = () => {
   const location = useLocation()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    navigate('/')
+  }
 
   return (
     <nav aria-label="Dashboard navigation" className="w-full overflow-hidden text-[11px] text-gray-600">
@@ -50,6 +55,20 @@ const Sidebar = () => {
 
           <ul>
             {group.items.map((item) => {
+              if (item.action === 'logout') {
+                return (
+                  <li key={item.label}>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="block w-full border-b border-white bg-[#f1f1f1] px-3 py-2 text-left font-medium text-gray-600 transition-colors hover:bg-gray-200 cursor-pointer"
+                    >
+                      {item.label}
+                    </button>
+                  </li>
+                )
+              }
+
               const isRouteLink = item.path && item.path !== '#'
 
               if (isRouteLink) {

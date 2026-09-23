@@ -146,22 +146,24 @@ const AddAdminUser = () => {
               )
               return (
                 <div key={group.title} className="space-y-1">
-                  <label className="flex items-center gap-1.5 text-xs font-semibold text-[#444] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isGroupChecked}
-                      onChange={() => handleToggleGroup(group)}
-                      className="accent-[#ff823d] cursor-pointer"
-                    />
-                    {group.title}
-                  </label>
-                  <div className="ml-5 space-y-1">
+                  <div>
+                    <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#444] cursor-pointer w-max">
+                      <input
+                        type="checkbox"
+                        checked={isGroupChecked}
+                        onChange={() => handleToggleGroup(group)}
+                        className="accent-[#ff823d] cursor-pointer"
+                      />
+                      <span>{group.title}</span>
+                    </label>
+                  </div>
+                  <div className="ml-5 space-y-1 flex flex-col items-start">
                     {group.items.map((item) => {
                       const itemKey = getPermissionKey(group.title, item)
                       return (
                         <label
                           key={item}
-                          className="flex items-center gap-1.5 text-xs text-[#666] cursor-pointer"
+                          className="inline-flex items-center gap-1.5 text-xs text-[#666] cursor-pointer w-max"
                         >
                           <input
                             type="checkbox"
@@ -169,7 +171,7 @@ const AddAdminUser = () => {
                             onChange={() => handleToggleItem(group.title, item)}
                             className="accent-[#ff823d] cursor-pointer"
                           />
-                          {item}
+                          <span>{item}</span>
                         </label>
                       )
                     })}

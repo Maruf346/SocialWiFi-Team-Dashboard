@@ -42,7 +42,14 @@ const TeamUser = () => {
   const [importOpen, setImportOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
-  // Edit form state for side panel
+  // Add form state (default mode)
+  const [addFormData, setAddFormData] = useState({
+    name: "",
+    email: "",
+    enrolled: true,
+  });
+
+  // Edit form state (when user row is selected)
   const [editFormData, setEditFormData] = useState({
     name: "",
     email: "",
@@ -126,10 +133,10 @@ const TeamUser = () => {
     );
   };
 
-  // Table Bottom Action Handlers
-  const handleRemove = () => {
+  // Table Bottom Action Handlers: Delete, Download, Cancel, Send Invite
+  const handleDelete = () => {
     if (selectedIds.length === 0) {
-      showToast("No users selected to remove");
+      showToast("No users selected to delete");
       return;
     }
     setUsers((prev) => prev.filter((u) => !selectedIds.includes(u.id)));
@@ -137,7 +144,7 @@ const TeamUser = () => {
       setActiveUserId(null);
     }
     setSelectedIds([]);
-    showToast("Selected users removed successfully");
+    showToast("Selected users deleted successfully");
   };
 
   const handleDownload = () => {
@@ -160,23 +167,38 @@ const TeamUser = () => {
     showToast("User list downloaded as CSV");
   };
 
-  const handleReset = () => {
+  const handleCancel = () => {
     setFilterInput("All");
     setFilter("All");
     setSearchInput("");
     setSearch("");
     setSelectedIds([]);
     setActiveUserId(null);
-    showToast("Filters and selection reset");
+    showToast("Selection and filters reset");
   };
 
-  // Side Panel Save & Cancel
-  const handleSaveUserInfo = (e) => {
+  // Add User Handler (SEND INVITE)
+  const handleAddUser = (e) => {
     e.preventDefault();
-    if (!activeUser) {
-      showToast("Please select a user first");
+    if (!addFormData.name.trim() || !addFormData.email.trim()) {
+      showToast("Please provide both name and email");
       return;
     }
+    const newUser = {
+      id: Date.now(),
+      name: addFormData.name.trim(),
+      email: addFormData.email.trim(),
+      enrolled: Boolean(addFormData.enrolled),
+    };
+    setUsers((prev) => [newUser, ...prev]);
+    setAddFormData({ name: "", email: "", enrolled: true });
+    showToast("Invitation sent and user added successfully");
+  };
+
+  // Side Panel Edit Save & Cancel
+  const handleSaveUserInfo = (e) => {
+    e.preventDefault();
+    if (!activeUser) return;
     setUsers((prev) =>
       prev.map((u) =>
         u.id === activeUser.id
@@ -193,16 +215,8 @@ const TeamUser = () => {
   };
 
   const handleCancelUserInfo = () => {
-    if (activeUser) {
-      setEditFormData({
-        name: activeUser.name,
-        email: activeUser.email,
-        enrolled: activeUser.enrolled,
-      });
-      showToast("Changes discarded");
-    } else {
-      setActiveUserId(null);
-    }
+    setActiveUserId(null);
+    showToast("Closed edit mode");
   };
 
   // CSV Import Handlers
@@ -254,8 +268,8 @@ const TeamUser = () => {
         <p>Enrolled user total: {enrolledTotal}</p>
       </div>
 
-      {/* Main Grid: Left Table & Right Side Panel */}
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_1fr] 2xl:grid-cols-[1.6fr_1fr]">
+      {/* Main Grid: Left Table & Right Side Panel (Left wider by 35px, Right narrower by 40px, wider gap) */}
+      <div className="grid grid-cols-1 gap-7 xl:grid-cols-[1.75fr_0.9fr] 2xl:grid-cols-[1.85fr_0.9fr]">
         {/* Left Column: Filter/Search, Table, Pagination, Action Buttons */}
         <section className="flex flex-col min-w-0">
           {/* Filters & Search Row */}
@@ -302,7 +316,7 @@ const TeamUser = () => {
 
           {/* Table Container */}
           <div className="overflow-x-auto border border-[#eee]">
-            <table className="w-full min-w-[580px] border-collapse text-left text-xs">
+            <table className="w-full min-w-[620px] border-collapse text-left text-xs">
               <thead>
                 <tr className="h-8 border-b border-[#eee] bg-[#f3f3f3] uppercase text-[#888] font-normal">
                   <th className="w-8 px-2 text-center">
@@ -317,8 +331,13 @@ const TeamUser = () => {
                   <th className="px-3 py-1 font-semibold tracking-wider">NAME</th>
                   <th className="px-3 py-1 font-semibold tracking-wider">EMAIL</th>
                   <th className="px-3 py-1 font-semibold tracking-wider">ENROLLED</th>
-                  <th className="w-14 px-2 py-1 text-center font-semibold tracking-wider">EDIT</th>
-                  <th className="w-16 px-2 py-1 text-center font-semibold tracking-wider">ROUTE <br className="sm:hidden" />HISTORY</th>
+                  {/* Expanded spacing between Edit and Route History headers */}
+                  <th className="w-20 px-4 py-1 text-center font-semibold tracking-wider">
+                    EDIT/<br className="sm:hidden" />VIEW
+                  </th>
+                  <th className="w-28 px-4 py-1 text-center font-semibold tracking-wider">
+                    ROUTE<br className="sm:hidden" />HISTORY
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -362,7 +381,7 @@ const TeamUser = () => {
                         <td className="px-3 py-1 text-[#666] whitespace-nowrap">
                           {user.enrolled ? "Yes" : "No"}
                         </td>
-                        <td className="px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
+                        <td className="px-4 py-1 text-center" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
                             onClick={() => handleSelectUser(user)}
@@ -372,7 +391,7 @@ const TeamUser = () => {
                             <Pencil size={15} />
                           </button>
                         </td>
-                        <td className="px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
+                        <td className="px-4 py-1 text-center" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
                             onClick={() =>
@@ -434,14 +453,14 @@ const TeamUser = () => {
             </div>
           </div>
 
-          {/* Table Action Buttons */}
+          {/* Table Action Buttons: DELETE, DOWNLOAD, CANCEL */}
           <div className="mt-4 flex flex-wrap items-center gap-2.5 rounded-lg border border-[#e7e7e7] bg-[#fafafa] p-2.5">
             <button
               type="button"
-              onClick={handleRemove}
+              onClick={handleDelete}
               className="rounded bg-[#ff823d] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#e56f2d] cursor-pointer"
             >
-              REMOVE
+              DELETE
             </button>
             <button
               type="button"
@@ -452,68 +471,68 @@ const TeamUser = () => {
             </button>
             <button
               type="button"
-              onClick={handleReset}
+              onClick={handleCancel}
               className="rounded bg-[#151d56] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0e143d] cursor-pointer"
             >
-              RESET
-            </button>
-            <button
-              type="button"
-              onClick={() => setImportOpen(true)}
-              className="ml-auto flex items-center gap-1.5 rounded bg-[#ff823d] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#e56f2d] cursor-pointer"
-            >
-              <Upload size={14} />
-              IMPORT CSV
+              CANCEL
             </button>
           </div>
         </section>
 
-        {/* Right Column: USER INFO / Add & Edit Panel */}
+        {/* Right Column: Add/Edit Users Side Panel */}
         <section className="flex flex-col min-w-0">
           <div className="mb-2 text-xs font-bold uppercase tracking-wider text-[#999]">
-            USER INFO
+            {activeUser ? "ADD/EDIT USER" : "ADD/EDIT USERS"}
           </div>
 
           {/* Side Panel Content Box */}
-          <div className="flex-1 overflow-y-auto border border-[#ccc] bg-white p-3.5 min-h-[380px] max-h-[610px] text-xs space-y-2.5">
+          <div className="flex-1 overflow-y-auto border border-[#ccc] bg-white p-3.5 min-h-[380px] max-h-[610px] text-xs space-y-3">
+            {/* Top instruction box with 1px larger font and correct wording */}
+            <div className="border border-[#e2e2e2] bg-[#f8f8f8] px-3 py-2 rounded-sm">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-[#555]">
+                TYPE OR IMPORT USERS: FIRST LAST NAME, EMAIL
+              </p>
+            </div>
+
             {activeUser ? (
-              <form onSubmit={handleSaveUserInfo} id="teamUserInfoForm" className="space-y-3 text-[#555]">
-                <h2 className="text-sm font-bold text-[#222] mb-1">
-                  {activeUser.name}
+              /* Edit Mode when row is selected */
+              <form onSubmit={handleSaveUserInfo} id="teamUserEditForm" className="space-y-3 text-[#555]">
+                <h2 className="text-sm font-bold text-[#222]">
+                  Edit: {activeUser.name}
                 </h2>
 
                 {/* Name field */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                  <label className="w-24 font-bold text-[#333]">Name:</label>
+                <div className="flex flex-col gap-1">
+                  <label className="font-bold text-[#333]">Name:</label>
                   <input
                     type="text"
                     value={editFormData.name}
                     onChange={(e) =>
                       setEditFormData({ ...editFormData, name: e.target.value })
                     }
-                    className="h-7 flex-1 rounded-sm border border-[#ccc] px-2 text-xs text-[#444] outline-none focus:border-[#ff823d]"
+                    className="h-7 w-full rounded-sm border border-[#ccc] px-2 text-xs text-[#444] outline-none focus:border-[#ff823d]"
                     required
                   />
                 </div>
 
                 {/* Email field */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                  <label className="w-24 font-bold text-[#333]">Email:</label>
+                <div className="flex flex-col gap-1">
+                  <label className="font-bold text-[#333]">Email:</label>
                   <input
                     type="email"
                     value={editFormData.email}
                     onChange={(e) =>
                       setEditFormData({ ...editFormData, email: e.target.value })
                     }
-                    className="h-7 flex-1 rounded-sm border border-[#ccc] px-2 text-xs text-[#444] outline-none focus:border-[#ff823d]"
+                    className="h-7 w-full rounded-sm border border-[#ccc] px-2 text-xs text-[#444] outline-none focus:border-[#ff823d]"
                     required
                   />
                 </div>
 
                 {/* Enrolled Checkbox */}
                 <div className="flex items-center gap-2 pt-1">
-                  <label className="w-24 font-bold text-[#333]">Enrolled:</label>
-                  <label className="flex items-center gap-1.5 cursor-pointer text-[#444]">
+                  <label className="font-bold text-[#333]">Enrolled:</label>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer text-[#444]">
                     <input
                       type="checkbox"
                       checked={editFormData.enrolled}
@@ -527,38 +546,118 @@ const TeamUser = () => {
                 </div>
               </form>
             ) : (
-              <div className="flex h-full min-h-[300px] flex-col items-center justify-center text-center text-[#888]">
-                <p className="text-sm">Select an user to edit/view details.</p>
-              </div>
+              /* Default Add Mode */
+              <form onSubmit={handleAddUser} id="teamUserAddForm" className="space-y-3 text-[#555]">
+                <h2 className="text-sm font-bold text-[#222]">
+                  Add New Team User
+                </h2>
+
+                {/* Name field */}
+                <div className="flex flex-col gap-1">
+                  <label className="font-bold text-[#333]">First & Last Name:</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. John Doe"
+                    value={addFormData.name}
+                    onChange={(e) =>
+                      setAddFormData({ ...addFormData, name: e.target.value })
+                    }
+                    className="h-7 w-full rounded-sm border border-[#ccc] px-2 text-xs text-[#444] outline-none focus:border-[#ff823d]"
+                    required
+                  />
+                </div>
+
+                {/* Email field */}
+                <div className="flex flex-col gap-1">
+                  <label className="font-bold text-[#333]">Email Address:</label>
+                  <input
+                    type="email"
+                    placeholder="e.g. johndoe@company.com"
+                    value={addFormData.email}
+                    onChange={(e) =>
+                      setAddFormData({ ...addFormData, email: e.target.value })
+                    }
+                    className="h-7 w-full rounded-sm border border-[#ccc] px-2 text-xs text-[#444] outline-none focus:border-[#ff823d]"
+                    required
+                  />
+                </div>
+
+                {/* Enrolled Checkbox */}
+                {/* <div className="flex items-center gap-2 pt-1">
+                  <label className="font-bold text-[#333]">Enrolled:</label>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer text-[#444]">
+                    <input
+                      type="checkbox"
+                      checked={addFormData.enrolled}
+                      onChange={(e) =>
+                        setAddFormData({ ...addFormData, enrolled: e.target.checked })
+                      }
+                      className="accent-[#ff823d] cursor-pointer"
+                    />
+                    <span>{addFormData.enrolled ? "Yes (Enrolled)" : "No (Not enrolled)"}</span>
+                  </label>
+                </div> */}
+              </form>
             )}
+          </div>
+
+          {/* Under box: users remaining & Upgrade Plan Link */}
+          <div className="flex flex-wrap items-center justify-between border-b border-[#eee] py-2 text-xs text-[#777]">
+            <span>{users.length} out of 500 total users remaining</span>
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard/manage/plan")}
+              className="text-[#1d2464] font-medium underline hover:text-[#ff823d] cursor-pointer"
+            >
+              Upgrade plan
+            </button>
           </div>
 
           {/* Side Panel Action Buttons */}
           <div className="mt-4 flex flex-wrap items-center gap-2.5 rounded-lg border border-[#e7e7e7] bg-[#fafafa] p-2.5">
-            <button
-              type="submit"
-              form="teamUserInfoForm"
-              disabled={!activeUser}
-              className={`rounded px-5 py-1.5 text-xs font-semibold text-white transition-colors ${
-                activeUser
-                  ? "bg-[#ff823d] hover:bg-[#e56f2d] cursor-pointer"
-                  : "bg-[#ff823d]/50 cursor-not-allowed"
-              }`}
-            >
-              SAVE
-            </button>
-            <button
-              type="button"
-              onClick={handleCancelUserInfo}
-              disabled={!activeUser}
-              className={`rounded px-5 py-1.5 text-xs font-semibold text-white transition-colors ${
-                activeUser
-                  ? "bg-[#151d56] hover:bg-[#0e143d] cursor-pointer"
-                  : "bg-[#151d56]/50 cursor-not-allowed"
-              }`}
-            >
-              CANCEL
-            </button>
+            {activeUser ? (
+              <>
+                <button
+                  type="submit"
+                  form="teamUserEditForm"
+                  className="rounded bg-[#ff823d] px-5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#e56f2d] cursor-pointer"
+                >
+                  SAVE
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelUserInfo}
+                  className="rounded bg-[#151d56] px-5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0e143d] cursor-pointer"
+                >
+                  CANCEL
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="submit"
+                  form="teamUserAddForm"
+                  className="rounded bg-[#ff823d] px-5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#e56f2d] cursor-pointer"
+                >
+                  SEND INVITE
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportOpen(true)}
+                  className="rounded bg-[#151d56] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0e143d] cursor-pointer flex items-center gap-1.5"
+                >
+                  <Upload size={13} />
+                  IMPORT
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddFormData({ name: "", email: "", enrolled: true })}
+                  className="rounded bg-[#666] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#555] cursor-pointer"
+                >
+                  CANCEL
+                </button>
+              </>
+            )}
           </div>
         </section>
       </div>
@@ -577,7 +676,7 @@ const TeamUser = () => {
                 type="button"
                 onClick={() => setImportOpen(false)}
                 aria-label="Close import dialog"
-                className="text-[#666] hover:text-[#111]"
+                className="text-[#666] hover:text-[#111] cursor-pointer"
               >
                 <X size={18} />
               </button>
