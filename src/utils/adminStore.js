@@ -1,4 +1,38 @@
-const STORAGE_KEY = 'rightroute_admin_users_v3';
+const STORAGE_KEY = 'rightroute_admin_users_v4';
+
+export const permissionGroups = [
+  {
+    title: 'Admin',
+    items: ['Admin user list', 'Add admin user'],
+  },
+  {
+    title: 'Team Users',
+    items: ['Manage'],
+  },
+  {
+    title: 'My Plan',
+    items: ['Manage'],
+  },
+  {
+    title: 'Route History',
+    items: ['My route history'],
+  },
+  {
+    title: 'Legal',
+    items: ['Privacy Policy', 'Terms of Use', 'Disclaimer'],
+  },
+  {
+    title: 'Support',
+    items: ['Contact support', 'Help center', 'Submit a support ticket', 'Resources'],
+  },
+  {
+    title: 'Security, Logging & Compliance',
+    items: ['Logout', 'Data protection', 'Delete account'],
+  },
+];
+
+// Helper to create unique permission identifier
+export const getPermissionKey = (groupTitle, item) => `${groupTitle}::${item}`;
 
 export const initialAdminUsers = [
   {
@@ -9,6 +43,9 @@ export const initialAdminUsers = [
     phone: '701-555-1234',
     status: 'Allowed',
     isSuperAdmin: true,
+    permissions: permissionGroups.flatMap((group) =>
+      group.items.map((item) => getPermissionKey(group.title, item))
+    ),
   },
   {
     id: 'USR-1785',
@@ -18,6 +55,11 @@ export const initialAdminUsers = [
     phone: '612-123-4567',
     status: 'Allowed',
     isSuperAdmin: false,
+    permissions: [
+      getPermissionKey('Admin', 'Admin user list'),
+      getPermissionKey('Admin', 'Add admin user'),
+      getPermissionKey('Team Users', 'Manage'),
+    ],
   },
   {
     id: 'USR-1513',
@@ -27,6 +69,7 @@ export const initialAdminUsers = [
     phone: '612-123-4567',
     status: 'Locked',
     isSuperAdmin: false,
+    permissions: [getPermissionKey('Admin', 'Admin user list')],
   },
   {
     id: 'USR-2549',
@@ -36,6 +79,7 @@ export const initialAdminUsers = [
     phone: '612-123-4567',
     status: 'Allowed',
     isSuperAdmin: false,
+    permissions: [getPermissionKey('Route History', 'My route history')],
   },
   {
     id: 'USR-3001',
@@ -45,6 +89,7 @@ export const initialAdminUsers = [
     phone: '612-123-4567',
     status: 'Allowed',
     isSuperAdmin: false,
+    permissions: [getPermissionKey('Route History', 'My route history')],
   },
   {
     id: 'USR-4002',
@@ -54,6 +99,7 @@ export const initialAdminUsers = [
     phone: '612-123-4567',
     status: 'Allowed',
     isSuperAdmin: false,
+    permissions: [getPermissionKey('Team Users', 'Manage')],
   },
   {
     id: 'USR-5003',
@@ -63,7 +109,8 @@ export const initialAdminUsers = [
     phone: '612-123-4567',
     status: 'Allowed',
     isSuperAdmin: false,
-  }
+    permissions: [getPermissionKey('Route History', 'My route history')],
+  },
 ];
 
 export const getAdminUsers = () => {
@@ -74,7 +121,7 @@ export const getAdminUsers = () => {
       return initialAdminUsers;
     }
     const parsed = JSON.parse(data);
-    if (!Array.isArray(parsed)) {
+    if (!Array.isArray(parsed) || parsed.length === 0) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(initialAdminUsers));
       return initialAdminUsers;
     }
@@ -103,7 +150,7 @@ export const addAdminUser = (userData) => {
     phone: userData.phone || '',
     status: userData.status || 'Allowed',
     isSuperAdmin: Boolean(userData.isSuperAdmin),
-    permissions: userData.permissions || {},
+    permissions: Array.isArray(userData.permissions) ? userData.permissions : [],
   };
   const updatedUsers = [...users, newUser];
   saveAdminUsers(updatedUsers);
@@ -112,9 +159,16 @@ export const addAdminUser = (userData) => {
 
 export const updateAdminUser = (id, updatedFields) => {
   const users = getAdminUsers();
-  const updatedUsers = users.map((user) =>
-    user.id === id ? { ...user, ...updatedFields } : user
-  );
+  const updatedUsers = users.map((user) => {
+    if (user.id !== id) return user;
+    return {
+      ...user,
+      ...updatedFields,
+      permissions: Array.isArray(updatedFields.permissions)
+        ? updatedFields.permissions
+        : user.permissions || [],
+    };
+  });
   saveAdminUsers(updatedUsers);
   return updatedUsers;
 };

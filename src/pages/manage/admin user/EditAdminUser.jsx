@@ -7,39 +7,9 @@ import {
   lockAdminUsers,
   unlockAdminUsers,
   deleteAdminUsers,
+  getPermissionKey,
+  permissionGroups,
 } from '../../../utils/adminStore'
-
-const permissionGroups = [
-  {
-    title: 'Admin',
-    items: ['Admin user list', 'Add admin user'],
-  },
-  {
-    title: 'Team Users',
-    items: ['Manage'],
-  },
-  {
-    title: 'Route History',
-    items: ['My route history', 'Team route history'],
-  },
-  {
-    title: 'Legal',
-    items: ['Privacy Policy', 'Terms of Use', 'Disclaimer'],
-  },
-    {
-    title: 'Support',
-    items: ['Contact support', 'Help center', 'Submit a support ticket', 'Resources'],
-  },
-  {
-    title: 'Security, Logging & Compliance',
-    items: ['Logout', 'Data protection', 'Delete account'],
-  },
-  {
-    title: 'My Plan',
-    items: ['Manage'],
-  },
-
-]
 
 const EditAdminUser = () => {
   const navigate = useNavigate()
@@ -52,13 +22,32 @@ const EditAdminUser = () => {
   })
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('ay4cczbZYOI1uB')
-  const [permissions, setPermissions] = useState({})
+  const [selectedPermissions, setSelectedPermissions] = useState([])
 
   useEffect(() => {
     const existing = getAdminUserById(id)
     if (existing) {
       setUser(existing)
-      setPermissions(existing.permissions || {})
+      if (Array.isArray(existing.permissions)) {
+        // Handle legacy flat strings by converting or preserving
+        const normalized = existing.permissions.map((perm) => {
+          if (perm.includes('::')) return perm
+          // Legacy mapping: find matching group
+          for (const group of permissionGroups) {
+            if (group.items.includes(perm)) {
+              return getPermissionKey(group.title, perm)
+            }
+          }
+          return perm
+        })
+        setSelectedPermissions(normalized)
+      } else if (typeof existing.permissions === 'object' && existing.permissions !== null) {
+        setSelectedPermissions(
+          Object.keys(existing.permissions).filter((key) => existing.permissions[key]),
+        )
+      } else {
+        setSelectedPermissions([])
+      }
     }
   }, [id])
 
@@ -66,11 +55,30 @@ const EditAdminUser = () => {
     setUser((prev) => ({ ...prev, [field]: value }))
   }
 
-  const togglePermission = (item) => {
-    setPermissions((prev) => ({
-      ...prev,
-      [item]: !prev[item],
-    }))
+  const handleToggleGroup = (group) => {
+    const allGroupKeys = group.items.map((item) => getPermissionKey(group.title, item))
+    const isGroupChecked = allGroupKeys.length > 0 && allGroupKeys.every((key) =>
+      selectedPermissions.includes(key),
+    )
+
+    if (isGroupChecked) {
+      setSelectedPermissions((prev) =>
+        prev.filter((key) => !allGroupKeys.includes(key)),
+      )
+    } else {
+      setSelectedPermissions((prev) =>
+        Array.from(new Set([...prev, ...allGroupKeys])),
+      )
+    }
+  }
+
+  const handleToggleItem = (groupTitle, item) => {
+    const key = getPermissionKey(groupTitle, item)
+    setSelectedPermissions((prev) =>
+      prev.includes(key)
+        ? prev.filter((perm) => perm !== key)
+        : [...prev, key],
+    )
   }
 
   const generatePassword = () => {
@@ -85,7 +93,7 @@ const EditAdminUser = () => {
       email: user.email,
       phone: user.phone,
       role: user.role,
-      permissions,
+      permissions: selectedPermissions,
     })
     navigate('/dashboard/manage/admin-users')
   }
@@ -113,10 +121,7 @@ const EditAdminUser = () => {
         Edit admin user
       </h1>
 
-      <form
-        className="mx-auto max-w-5xl"
-        onSubmit={handleSave}
-      >
+      <form className="mx-auto max-w-5xl" onSubmit={handleSave}>
         <div className="space-y-2">
           {[
             ['Name:', 'name', user.name, 'text'],
@@ -176,34 +181,50 @@ const EditAdminUser = () => {
           </div>
         </div>
 
-        <fieldset className="mt-4 flex border-b border-[#e5e5e5] py-3">
-          <legend className="w-36 px-2 text-xs font-semibold">
+        {/* Permissions Section */}
+        <fieldset className="mt-4 flex border-b border-[#e5e5e5] py-4">
+          <legend className="w-36 px-2 text-xs font-semibold text-[#555]">
             Permissions:
           </legend>
-          <div className="grid flex-1 grid-cols-1 gap-x-16 md:grid-cols-2">
-            {permissionGroups.map((group) => (
-              <div key={group.title} className="mb-1">
-                <label className="flex items-center gap-1 text-xs">
-                  <input type="checkbox" />
-                  {group.title}
-                </label>
-                <div className="ml-4">
-                  {group.items.map((item) => (
-                    <label
-                      key={item}
-                      className="flex items-center gap-1 py-0.5 text-xs"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={Boolean(permissions[item])}
-                        onChange={() => togglePermission(item)}
-                      />
-                      {item}
-                    </label>
-                  ))}
+          <div className="grid flex-1 grid-cols-1 gap-x-12 gap-y-4 md:grid-cols-2">
+            {permissionGroups.map((group) => {
+              const allGroupKeys = group.items.map((item) => getPermissionKey(group.title, item))
+              const isGroupChecked = allGroupKeys.length > 0 && allGroupKeys.every((key) =>
+                selectedPermissions.includes(key),
+              )
+              return (
+                <div key={group.title} className="space-y-1">
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-[#444] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isGroupChecked}
+                      onChange={() => handleToggleGroup(group)}
+                      className="accent-[#ff823d] cursor-pointer"
+                    />
+                    {group.title}
+                  </label>
+                  <div className="ml-5 space-y-1">
+                    {group.items.map((item) => {
+                      const itemKey = getPermissionKey(group.title, item)
+                      return (
+                        <label
+                          key={item}
+                          className="flex items-center gap-1.5 text-xs text-[#666] cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedPermissions.includes(itemKey)}
+                            onChange={() => handleToggleItem(group.title, item)}
+                            className="accent-[#ff823d] cursor-pointer"
+                          />
+                          {item}
+                        </label>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </fieldset>
 
@@ -217,7 +238,7 @@ const EditAdminUser = () => {
             </button>
             <button
               type="button"
-              onClick={() => navigate("/dashboard/manage/admin-users")}
+              onClick={() => navigate('/dashboard/manage/admin-users')}
               className="rounded bg-[#1d2464] px-4 py-2 text-xs font-bold text-white hover:bg-[#ff823d] transition-colors cursor-pointer"
             >
               CANCEL
@@ -249,7 +270,7 @@ const EditAdminUser = () => {
         </div>
       </form>
     </div>
-  );
-};
+  )
+}
 
-export default EditAdminUser;
+export default EditAdminUser

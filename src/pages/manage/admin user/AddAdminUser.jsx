@@ -1,80 +1,72 @@
-import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
-import { useNavigate } from "react-router";
-import { addAdminUser } from "../../../utils/adminStore";
-
-const permissionGroups = [
-  {
-    title: 'Admin',
-    items: ['Admin user list', 'Add admin user'],
-  },
-  {
-    title: 'Team Users',
-    items: ['Manage'],
-  },
-  {
-    title: 'Route History',
-    items: ['My route history', 'Team route history'],
-  },
-  {
-    title: 'Legal',
-    items: ['Privacy Policy', 'Terms of Use', 'Disclaimer'],
-  },
-    {
-    title: 'Support',
-    items: ['Contact support', 'Help center', 'Submit a support ticket', 'Resources'],
-  },
-  {
-    title: 'Security, Logging & Compliance',
-    items: ['Logout', 'Data protection', 'Delete account'],
-  },
-  {
-    title: 'My Plan',
-    items: ['Manage'],
-  },
-];
+import { useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
+import { useNavigate } from 'react-router'
+import { addAdminUser, getPermissionKey, permissionGroups } from '../../../utils/adminStore'
 
 const AddAdminUser = () => {
-  const navigate = useNavigate();
-  const [showPassword, setShowPassword] = useState(false);
-  const [password, setPassword] = useState("");
+  const navigate = useNavigate()
+  const [showPassword, setShowPassword] = useState(false)
+  const [password, setPassword] = useState('ay4cczbZYOI1uB')
   const [formData, setFormData] = useState({
-    name: "Eric Little",
-    email: "el2609@gmail.com",
-    phone: "612-123-4567",
-    role: "Legal Adviser",
-  });
-  const [selectedPermissions, setSelectedPermissions] = useState({});
+    name: 'Eric Little',
+    email: 'el2609@gmail.com',
+    phone: '612-123-4567',
+    role: 'Legal Adviser',
+  })
+  const [selectedPermissions, setSelectedPermissions] = useState([
+    getPermissionKey('Admin', 'Admin user list'),
+    getPermissionKey('Admin', 'Add admin user'),
+    getPermissionKey('Team Users', 'Manage'),
+  ])
 
   const handleInputChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+    setFormData((prev) => ({ ...prev, [field]: value }))
+  }
 
-  const togglePermission = (item) => {
-    setSelectedPermissions((prev) => ({
-      ...prev,
-      [item]: !prev[item],
-    }));
-  };
+  const handleToggleGroup = (group) => {
+    const allGroupKeys = group.items.map((item) => getPermissionKey(group.title, item))
+    const isGroupChecked = allGroupKeys.every((key) =>
+      selectedPermissions.includes(key),
+    )
+
+    if (isGroupChecked) {
+      setSelectedPermissions((prev) =>
+        prev.filter((key) => !allGroupKeys.includes(key)),
+      )
+    } else {
+      setSelectedPermissions((prev) =>
+        Array.from(new Set([...prev, ...allGroupKeys])),
+      )
+    }
+  }
+
+  const handleToggleItem = (groupTitle, item) => {
+    const key = getPermissionKey(groupTitle, item)
+    setSelectedPermissions((prev) =>
+      prev.includes(key)
+        ? prev.filter((perm) => perm !== key)
+        : [...prev, key],
+    )
+  }
 
   const generatePassword = () => {
-    const randomPassword = "ay4cczbZYOI1uB";
-    setPassword(randomPassword);
-  };
+    const randomPassword = 'ay4cczbZYOI1uB'
+    setPassword(randomPassword)
+  }
 
   const handleAddSubmit = (event) => {
-    event.preventDefault();
+    event.preventDefault()
     addAdminUser({
-      name: formData.name || "Eric Little",
-      email: formData.email || "el2609@gmail.com",
-      phone: formData.phone || "612-123-4567",
-      role: formData.role || "Legal Adviser",
-      status: "Allowed",
+      name: formData.name || 'Eric Little',
+      email: formData.email || 'el2609@gmail.com',
+      phone: formData.phone || '612-123-4567',
+      role: formData.role || 'Legal Adviser',
+      status: 'Allowed',
       isSuperAdmin: false,
       permissions: selectedPermissions,
-    });
-    navigate("/dashboard/manage/admin-users");
-  };
+    })
+    navigate('/dashboard/manage/admin-users')
+  }
 
   return (
     <div className="min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
@@ -82,16 +74,13 @@ const AddAdminUser = () => {
         Add admin user
       </h1>
 
-      <form
-        className="mx-auto max-w-5xl"
-        onSubmit={handleAddSubmit}
-      >
+      <form className="mx-auto max-w-5xl" onSubmit={handleAddSubmit}>
         <div className="space-y-2">
           {[
-            ["Name:", "name", formData.name, "text"],
-            ["Email:", "email", formData.email, "email"],
-            ["Phone:", "phone", formData.phone, "tel"],
-            ["Role:", "role", formData.role, "text"],
+            ['Name:', 'name', formData.name, 'text'],
+            ['Email:', 'email', formData.email, 'email'],
+            ['Phone:', 'phone', formData.phone, 'tel'],
+            ['Role:', 'role', formData.role, 'text'],
           ].map(([label, field, val, type]) => (
             <div
               key={label}
@@ -102,8 +91,8 @@ const AddAdminUser = () => {
                 type={type}
                 value={val}
                 onChange={(e) => handleInputChange(field, e.target.value)}
-                placeholder={label.replace(":", "")}
-                aria-label={label.replace(":", "")}
+                placeholder={label.replace(':', '')}
+                aria-label={label.replace(':', '')}
                 className="h-7 w-60 rounded border border-[#d5d5d5] px-2 text-xs text-gray-600 outline-none focus:border-[#1d2464]"
               />
             </div>
@@ -114,7 +103,7 @@ const AddAdminUser = () => {
             <div className="flex items-center gap-2">
               <div className="relative">
                 <input
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   aria-label="Password"
@@ -122,7 +111,7 @@ const AddAdminUser = () => {
                 />
                 <button
                   type="button"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                   onClick={() => setShowPassword((value) => !value)}
                   className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center text-[#666] hover:text-[#1d2464]"
                 >
@@ -144,34 +133,50 @@ const AddAdminUser = () => {
           </div>
         </div>
 
-        <fieldset className="mt-4 flex border-b border-[#e5e5e5] py-3">
-          <legend className="w-36 px-2 text-xs font-semibold">
+        {/* Permissions Section */}
+        <fieldset className="mt-4 flex border-b border-[#e5e5e5] py-4">
+          <legend className="w-36 px-2 text-xs font-semibold text-[#555]">
             Permissions:
           </legend>
-          <div className="grid flex-1 grid-cols-1 gap-x-16 md:grid-cols-2">
-            {permissionGroups.map((group) => (
-              <div key={group.title} className="mb-1">
-                <label className="flex items-center gap-1 text-xs">
-                  <input type="checkbox" />
-                  {group.title}
-                </label>
-                <div className="ml-4">
-                  {group.items.map((item) => (
-                    <label
-                      key={item}
-                      className="flex items-center gap-1 py-0.5 text-xs"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={Boolean(selectedPermissions[item])}
-                        onChange={() => togglePermission(item)}
-                      />
-                      {item}
-                    </label>
-                  ))}
+          <div className="grid flex-1 grid-cols-1 gap-x-12 gap-y-4 md:grid-cols-2">
+            {permissionGroups.map((group) => {
+              const allGroupKeys = group.items.map((item) => getPermissionKey(group.title, item))
+              const isGroupChecked = allGroupKeys.length > 0 && allGroupKeys.every((key) =>
+                selectedPermissions.includes(key),
+              )
+              return (
+                <div key={group.title} className="space-y-1">
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-[#444] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isGroupChecked}
+                      onChange={() => handleToggleGroup(group)}
+                      className="accent-[#ff823d] cursor-pointer"
+                    />
+                    {group.title}
+                  </label>
+                  <div className="ml-5 space-y-1">
+                    {group.items.map((item) => {
+                      const itemKey = getPermissionKey(group.title, item)
+                      return (
+                        <label
+                          key={item}
+                          className="flex items-center gap-1.5 text-xs text-[#666] cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedPermissions.includes(itemKey)}
+                            onChange={() => handleToggleItem(group.title, item)}
+                            className="accent-[#ff823d] cursor-pointer"
+                          />
+                          {item}
+                        </label>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </fieldset>
 
@@ -184,7 +189,7 @@ const AddAdminUser = () => {
           </button>
           <button
             type="button"
-            onClick={() => navigate("/dashboard/manage/admin-users")}
+            onClick={() => navigate('/dashboard/manage/admin-users')}
             className="rounded bg-[#1d2464] px-4 py-2 text-xs font-bold text-white hover:bg-[#ff823d] transition-colors cursor-pointer"
           >
             CANCEL
@@ -192,7 +197,7 @@ const AddAdminUser = () => {
         </div>
       </form>
     </div>
-  );
-};
+  )
+}
 
-export default AddAdminUser;
+export default AddAdminUser
