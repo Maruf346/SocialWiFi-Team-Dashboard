@@ -105,6 +105,7 @@ const CreateRoute = () => {
   ])
   const [routePath, setRoutePath]       = useState([])     // [[lat,lng],…] for polyline
   const fileInputRef                    = useRef(null)
+  const cameraInputRef                  = useRef(null)
   const mapRef                          = useRef(null)
 
   // Default map center (Des Moines, IA as placeholder)
@@ -277,125 +278,196 @@ const CreateRoute = () => {
         <span>{step === 1 ? "Driver's route history" : 'Back to step 1'}</span>
       </button>
 
-      <h2 className="mb-4 text-base font-semibold text-[#333]">
+      <h2 className="mb-4 text-base font-bold text-[#111]">
         New Route for: <span className="font-bold">{driverName}</span>
       </h2>
 
       {/* ═══════════════════════════════ STEP 1 ════════════════════════════ */}
       {step === 1 && (
         <div className="flex flex-col gap-4">
-          {/* Top controls row */}
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            {/* Route name */}
+          {/* Top 3-column row matching mockup exactly */}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3 items-start">
+            {/* Column 1: Enter Route Name */}
             <div>
-              <label className="mb-1 block text-[13px] font-semibold text-[#333]">
-                Enter Route Name
-                <span className="ml-1 inline-flex h-4 w-4 cursor-default items-center justify-center rounded-full bg-[#bbb] text-[10px] text-white">?</span>
+              <label className="mb-1.5 flex items-center text-[14px] font-bold text-[#111]">
+                <span>Enter Route Name</span>
+                <span
+                  title="Enter a route name"
+                  className="ml-1.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-[2px] bg-[#606060] text-[10px] font-bold text-white select-none"
+                >
+                  ?
+                </span>
               </label>
               <input
                 type="text"
                 value={routeName}
                 onChange={(e) => setRouteName(e.target.value)}
-                placeholder="e.g. Iowa Wind Tower"
-                className="h-8 w-full border border-[#ccc] px-2 text-[13px] text-[#444] outline-none focus:border-[#ff823d]"
+                className="h-8 w-full rounded-[4px] border border-[#ccc] bg-white px-2.5 text-[13px] text-[#333] outline-none focus:border-[#eb7035]"
               />
-            </div>
-
-            {/* Step 1 – Input Permit */}
-            <div>
-              <label className="mb-1 block text-[13px] font-semibold text-[#333]">
-                Step 1 – Input Permit
-                <span className="ml-1 inline-flex h-4 w-4 cursor-default items-center justify-center rounded-full bg-[#bbb] text-[10px] text-white">?</span>
-              </label>
-              <p className="mb-1 text-[11px] font-medium text-[#e53935]">
+              <p className="mt-2 text-[12px] font-bold text-[#8a1c14] leading-tight">
                 NOTE: Only one permit can be processed at a time.
               </p>
+            </div>
 
-              {/* File upload icons row */}
-              <div className="mb-1 flex items-center gap-2">
+            {/* Column 2: Step 1 - Input Permit */}
+            <div>
+              <label className="mb-1.5 flex items-center text-[14px] font-bold text-[#111]">
+                <span>Step 1 - Input Permit</span>
+                <span
+                  title="Upload permit document, take a photo, or type comma-separated waypoints"
+                  className="ml-1.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-[2px] bg-[#606060] text-[10px] font-bold text-white select-none"
+                >
+                  ?
+                </span>
+              </label>
+
+              {/* Orange icon buttons */}
+              <div className="mb-2 flex items-center gap-2">
+                {/* Document / Permit file upload */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  title="Upload permit file (PDF/image)"
-                  className="flex h-8 w-8 items-center justify-center rounded border border-[#ccc] bg-[#f9f9f9] text-[#555] hover:bg-[#eee] cursor-pointer"
+                  title="Upload permit file (PDF/Image)"
+                  className="flex h-8 w-8 items-center justify-center rounded-[4px] bg-[#eb7035] text-white shadow-sm transition hover:bg-[#d85f24] cursor-pointer"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="12" y1="18" x2="12" y2="12" />
+                    <polyline points="9 15 12 18 15 15" />
+                  </svg>
                 </button>
+
+                {/* Camera icon button */}
                 <button
                   type="button"
-                  title="Take a photo"
-                  className="flex h-8 w-8 items-center justify-center rounded border border-[#ccc] bg-[#f9f9f9] text-[#555] hover:bg-[#eee] cursor-pointer"
+                  onClick={() => cameraInputRef.current?.click()}
+                  title="Take photo of permit"
+                  className="flex h-8 w-8 items-center justify-center rounded-[4px] bg-[#eb7035] text-white shadow-sm transition hover:bg-[#d85f24] cursor-pointer"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                    <circle cx="12" cy="13" r="4" />
+                  </svg>
                 </button>
+
                 {permitFile && (
-                  <span className="max-w-[120px] truncate text-[11px] text-[#666]">{permitFile.name}</span>
+                  <span className="max-w-[140px] truncate rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-[#444]">
+                    📄 {permitFile.name}
+                  </span>
                 )}
               </div>
+
+              {/* Hidden file inputs */}
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,image/*"
+                accept=".pdf,image/*,.txt"
                 className="hidden"
                 onChange={(e) => setPermitFile(e.target.files[0] ?? null)}
               />
-              <textarea
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => setPermitFile(e.target.files[0] ?? null)}
+              />
+
+              {/* Waypoints input */}
+              <input
+                type="text"
                 value={permitText}
                 onChange={(e) => setPermitText(e.target.value)}
-                placeholder="Type in waypoints, comma separated."
-                rows={2}
-                className="w-full resize-none border border-[#ccc] px-2 py-1 text-[12px] text-[#444] outline-none focus:border-[#ff823d]"
+                placeholder="Type in a waypoints, comma separated."
+                className="h-8 w-full rounded-[4px] border border-[#ccc] bg-white px-2.5 text-[13px] text-[#333] placeholder:text-[#999] outline-none focus:border-[#eb7035]"
               />
             </div>
 
-            {/* Step 2 – Start/End point */}
+            {/* Column 3: Step 2 - Set Start and End Points */}
             <div>
-              <label className="mb-1 block text-[13px] font-semibold text-[#333]">
-                Step 2 – Set Start and End Points
-                <span className="ml-1 inline-flex h-4 w-4 cursor-default items-center justify-center rounded-full bg-[#bbb] text-[10px] text-white">?</span>
+              <label className="mb-1.5 flex items-center text-[14px] font-bold text-[#111]">
+                <span>Step 2 - Set Start and End Points</span>
+                <span
+                  title="Enter location address or click on the map to set points"
+                  className="ml-1.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-[2px] bg-[#606060] text-[10px] font-bold text-white select-none"
+                >
+                  ?
+                </span>
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={startInput}
-                  onChange={(e) => setStartInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSetStartPoint()}
-                  placeholder="Enter a location or move pin on map."
-                  className="h-8 flex-1 border border-[#ccc] px-2 text-[12px] text-[#444] outline-none focus:border-[#ff823d]"
-                />
+
+              {/* Location input */}
+              <input
+                type="text"
+                value={startInput}
+                onChange={(e) => setStartInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSetStartPoint()}
+                placeholder="Enter a location of move pin on map."
+                className="h-8 w-full rounded-[4px] border border-[#ccc] bg-white px-2.5 text-[13px] text-[#333] placeholder:text-[#999] outline-none focus:border-[#eb7035]"
+              />
+
+              {/* Set Start Point button */}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={handleSetStartPoint}
                   disabled={geocoding}
-                  className="h-8 whitespace-nowrap rounded bg-[#ff823d] px-3 text-[12px] font-semibold text-white hover:bg-[#e56f2d] cursor-pointer disabled:opacity-60"
+                  className="inline-flex h-8 items-center justify-center rounded-[4px] bg-[#eb7035] px-3.5 text-[13px] font-bold text-white shadow-sm transition hover:bg-[#d85f24] cursor-pointer disabled:opacity-60"
                 >
-                  {geocoding ? 'Searching…' : 'Set Start Point'}
+                  {geocoding ? 'Setting…' : 'Set Start Point'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSettingPin(settingPin === 'start' ? null : 'start')}
+                  className={`text-[11px] underline cursor-pointer ${settingPin === 'start' ? 'text-[#eb7035] font-semibold' : 'text-[#666]'}`}
+                >
+                  {settingPin === 'start' ? '📍 Click map for Start pin…' : 'Or click map'}
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setSettingPin(settingPin === 'start' ? null : 'start')}
-                className={`mt-1 text-[11px] underline cursor-pointer ${settingPin === 'start' ? 'text-[#ff823d] font-semibold' : 'text-[#666]'}`}
-              >
-                {settingPin === 'start' ? '📍 Click the map to place Start pin…' : 'Or click map to place Start pin'}
-              </button>
-              {startPoint && (
-                <p className="mt-0.5 text-[11px] text-green-600 font-medium">
-                  ✓ Start set: {startPoint.lat.toFixed(4)}, {startPoint.lng.toFixed(4)}
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={() => setSettingPin(settingPin === 'end' ? null : 'end')}
-                className={`mt-2 text-[11px] underline cursor-pointer ${settingPin === 'end' ? 'text-[#ff823d] font-semibold' : 'text-[#666]'}`}
-              >
-                {settingPin === 'end' ? '📍 Click the map to place End pin…' : 'Or click map to place End pin'}
-              </button>
-              {endPoint && (
-                <p className="mt-0.5 text-[11px] text-red-500 font-medium">
-                  ✓ End set: {endPoint.lat.toFixed(4)}, {endPoint.lng.toFixed(4)}
-                </p>
-              )}
+
+              {/* Start & End Status feedback */}
+              <div className="mt-1 flex flex-col gap-0.5 text-[11px]">
+                {startPoint && (
+                  <span className="font-medium text-green-700">
+                    ✓ Start: {startPoint.lat.toFixed(4)}, {startPoint.lng.toFixed(4)}
+                  </span>
+                )}
+                {endPoint ? (
+                  <span className="font-medium text-red-600">
+                    ✓ End: {endPoint.lat.toFixed(4)}, {endPoint.lng.toFixed(4)}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setSettingPin(settingPin === 'end' ? null : 'end')}
+                    className={`text-left underline cursor-pointer ${settingPin === 'end' ? 'text-[#eb7035] font-semibold' : 'text-[#777]'}`}
+                  >
+                    {settingPin === 'end' ? '📍 Click map for End pin…' : '+ Click map to place End pin'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
