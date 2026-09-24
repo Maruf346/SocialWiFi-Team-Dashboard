@@ -13,6 +13,7 @@ const breadcrumbMap = {
   '/dashboard/manage/plan': ['Home', 'Manage', 'Plan'],
   '/dashboard/manage/team-users': ['Home', 'Manage', 'Team users'],
   '/dashboard/manage/team-route-history': ['Home', 'Manage', 'Team driver route history'],
+  '/dashboard/manage/team-route-history/create': ['Home', 'Manage', 'Team driver route history', 'Create Route'],
   '/dashboard/security/delete-account': ['Home', 'Security', 'Delete account'],
   '/dashboard/security/data-protection': ['Home', 'Security', 'Data protection'],
   '/dashboard/support/contact': ['Home', 'Support', 'Contact Us'],
@@ -27,9 +28,12 @@ const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
 
-  const breadcrumb = location.pathname.startsWith('/dashboard/manage/admin-users/edit/')
-    ? ['Home', 'Manage', 'Edit admin user']
-    : breadcrumbMap[location.pathname] || ['Home']
+  const breadcrumb =
+    location.pathname.startsWith('/dashboard/manage/admin-users/edit/')
+      ? ['Home', 'Manage', 'Edit admin user']
+      : location.pathname.startsWith('/dashboard/manage/team-route-history/edit/')
+      ? ['Home', 'Manage', 'Team driver route history', 'Edit Route']
+      : breadcrumbMap[location.pathname] || ['Home']
 
   const handleMenuClick = () => {
     setSidebarOpen(!sidebarOpen);

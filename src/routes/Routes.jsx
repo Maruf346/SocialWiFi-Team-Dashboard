@@ -22,6 +22,8 @@ import SubmitTicket from "../pages/support/submit support ticket/SubmitTicket";
 import Resources from "../pages/support/resources/Resources";
 import TeamUser from "../pages/manage/team user/TeamUser";
 import RouteHistory from "../pages/manage/route history/RouteHistory";
+import CreateRoute from "../pages/manage/route history/CreateRoute";
+import EditRoute from "../pages/manage/route history/EditRoute";
 //legal section
 import PrivacyPolicy from "../pages/legal/privacy policy/PrivacyPolicy";
 import TermsOfUse from "../pages/legal/terms of use/TermsOfUse";
@@ -52,6 +54,8 @@ export const router = createBrowserRouter([
       { path: "manage/admin-users/edit/:id", element: <EditAdminUser /> },
       { path: "manage/team-users", element: <TeamUser /> },
       { path: "manage/team-route-history", element: <RouteHistory /> },
+      { path: "manage/team-route-history/create", element: <CreateRoute /> },
+      { path: "manage/team-route-history/edit/:routeId", element: <EditRoute /> },
       { path: "manage/plan", element: <Plan /> },
       // { path: "edit-user/:id", element: <EditAdminUser /> },
       // security routes

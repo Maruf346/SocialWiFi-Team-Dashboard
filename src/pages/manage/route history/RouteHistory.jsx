@@ -316,6 +316,10 @@ const RouteHistory = () => {
           <button
             type="button"
             disabled={!hasSelection}
+            onClick={() => {
+              if (!selectedRouteId) return
+              navigate(`/dashboard/manage/team-route-history/edit/${selectedRouteId}`)
+            }}
             className={`rounded px-3 py-1.5 text-sm font-medium text-white transition ${
               hasSelection
                 ? 'bg-[#151d56] hover:bg-[#1f2b7b] cursor-pointer'
@@ -326,6 +330,7 @@ const RouteHistory = () => {
           </button>
           <button
             type="button"
+            onClick={() => navigate('/dashboard/manage/team-route-history/create')}
             className="rounded bg-[#ff823d] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#e56f2d] cursor-pointer"
           >
             Create New Route
