@@ -28,8 +28,8 @@ const RouteHistory = () => {
   const [ownerRoutes, setOwnerRoutes] = useState(ownerRouteHistoryData)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
-  const [selectedIds, setSelectedIds] = useState([2])
-  const [selectedRouteId, setSelectedRouteId] = useState(2)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [selectedRouteId, setSelectedRouteId] = useState(null)
   const [isOwnerView, setIsOwnerView] = useState(false)
 
   const activeRoutes = isOwnerView ? ownerRoutes : routes
@@ -45,28 +45,40 @@ const RouteHistory = () => {
   }, [activeRoutes, search])
 
   const selectedRoute =
-    visibleRoutes.find((route) => route.id === selectedRouteId) ??
-    activeRoutes.find((route) => route.id === selectedRouteId) ??
-    activeRoutes[0]
+    (selectedRouteId ? visibleRoutes.find((route) => route.id === selectedRouteId) : null) ??
+    (selectedRouteId ? activeRoutes.find((route) => route.id === selectedRouteId) : null) ??
+    null
 
   const allVisibleSelected =
     visibleRoutes.length > 0 &&
     visibleRoutes.every((route) => selectedIds.includes(route.id))
 
-  const toggleRoute = (routeId) => {
-    setSelectedIds((current) =>
-      current.includes(routeId)
-        ? current.filter((id) => id !== routeId)
-        : [...current, routeId],
-    )
+  const handleRowClick = (routeId) => {
     setSelectedRouteId(routeId)
+    setSelectedIds([routeId])
+  }
+
+  const toggleRoute = (routeId) => {
+    setSelectedIds((current) => {
+      const isSelected = current.includes(routeId)
+      const next = isSelected
+        ? current.filter((id) => id !== routeId)
+        : [...current, routeId]
+
+      if (isSelected && selectedRouteId === routeId) {
+        setSelectedRouteId(next[0] ?? null)
+      } else if (!isSelected) {
+        setSelectedRouteId(routeId)
+      }
+
+      return next
+    })
   }
 
   const toggleAllRoutes = (checked) => {
-    setSelectedIds(checked ? visibleRoutes.map((route) => route.id) : [])
-    if (checked && visibleRoutes.length) {
-      setSelectedRouteId(visibleRoutes[0].id)
-    }
+    const nextIds = checked ? visibleRoutes.map((route) => route.id) : []
+    setSelectedIds(nextIds)
+    setSelectedRouteId(checked && visibleRoutes.length ? visibleRoutes[0].id : null)
   }
 
   const deleteSelected = () => {
@@ -84,12 +96,7 @@ const RouteHistory = () => {
     }
 
     setSelectedIds([])
-    setSelectedRouteId((current) => {
-      if (!remainingRoutes.length) return null
-      return remainingRoutes.some((route) => route.id === current)
-        ? current
-        : remainingRoutes[0].id
-    })
+    setSelectedRouteId(null)
   }
 
   const downloadCsv = () => {
@@ -121,8 +128,10 @@ const RouteHistory = () => {
   const loadOwnerHistory = () => {
     setIsOwnerView(true)
     setSelectedIds([])
-    setSelectedRouteId(ownerRoutes[0]?.id ?? null)
+    setSelectedRouteId(null)
   }
+
+  const hasSelection = selectedIds.length > 0
 
   return (
     <main className="team-users-page min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
@@ -196,27 +205,31 @@ const RouteHistory = () => {
                 {visibleRoutes.map((route) => (
                   <tr
                     key={route.id}
-                    className={`h-8 border-b border-white even:bg-[#f7f7f7] ${
-                      selectedRouteId === route.id ? 'bg-[#f1f1f1]' : ''
+                    onClick={() => handleRowClick(route.id)}
+                    className={`h-8 border-b border-white cursor-pointer transition-colors even:bg-[#f7f7f7] hover:bg-[#eaeaea] ${
+                      selectedRouteId === route.id || selectedIds.includes(route.id)
+                        ? 'bg-[#f1f1f1]'
+                        : ''
                     }`}
                   >
-                    <td className="px-1">
+                    <td className="px-1" onClick={(event) => event.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(route.id)}
                         onChange={() => toggleRoute(route.id)}
                         aria-label={`Select route ${route.name}`}
+                        className="cursor-pointer"
                       />
                     </td>
                     <td className="px-2">{String(route.id).padStart(2, '0')}</td>
                     <td className="px-2">{route.date}</td>
                     <td className="px-2">{route.name}</td>
-                    <td className="px-1 text-right">
+                    <td className="px-1 text-right" onClick={(event) => event.stopPropagation()}>
                       <button
                         type="button"
-                        onClick={() => setSelectedRouteId(route.id)}
+                        onClick={() => handleRowClick(route.id)}
                         aria-label={`View route ${route.name}`}
-                        className="inline-flex items-center justify-center text-[#666] transition hover:text-[#ff823d]"
+                        className="inline-flex items-center justify-center text-[#666] transition hover:text-[#ff823d] cursor-pointer"
                       >
                         <Eye size={16} />
                       </button>
@@ -243,32 +256,65 @@ const RouteHistory = () => {
           </div>
 
           <div className="max-h-[430px] overflow-y-auto px-3 py-2">
-            <ul className="space-y-1 text-[15px] text-[#555]">
-              {selectedRoute.waypoints.map((point) => (
-                <li key={point} className="py-1">
-                  {point}
-                </li>
-              ))}
-            </ul>
+            {selectedRoute ? (
+              <ul className="space-y-1 text-[15px] text-[#555]">
+                {selectedRoute.waypoints.map((point) => (
+                  <li key={point} className="py-1">
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="py-3 text-[14px] text-[#888] italic">
+                Select a route to view waypoints.
+              </p>
+            )}
           </div>
         </aside>
       </div>
 
-      <div className="mt-4 flex gap-2 rounded-lg border border-[#e7e7e7] bg-[#fafafa] p-2">
-        <button
-          type="button"
-          onClick={deleteSelected}
-          className="rounded bg-[#ff823d] px-3 py-1.5 text-white cursor-pointer"
-        >
-          DELETE
-        </button>
-        <button
-          type="button"
-          onClick={downloadCsv}
-          className="rounded bg-[#151d56] px-3 py-1.5 text-white cursor-pointer"
-        >
-          DOWNLOAD
-        </button>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#e7e7e7] bg-[#fafafa] p-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={deleteSelected}
+            disabled={!hasSelection}
+            className={`rounded px-3 py-1.5 text-sm font-medium text-white transition ${
+              hasSelection
+                ? 'bg-[#ff823d] hover:bg-[#e56f2d] cursor-pointer'
+                : 'bg-[#ff823d] opacity-40 cursor-not-allowed'
+            }`}
+          >
+            DELETE
+          </button>
+          <button
+            type="button"
+            onClick={downloadCsv}
+            className="rounded bg-[#151d56] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#1f2b7b] cursor-pointer"
+          >
+            DOWNLOAD
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={!hasSelection}
+            className={`rounded px-3 py-1.5 text-sm font-medium text-white transition ${
+              hasSelection
+                ? 'bg-[#151d56] hover:bg-[#1f2b7b] cursor-pointer'
+                : 'bg-[#151d56] opacity-40 cursor-not-allowed'
+            }`}
+          >
+            Edit Route
+          </button>
+          <button
+            type="button"
+            className="rounded bg-[#ff823d] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#e56f2d] cursor-pointer"
+          >
+            Create New Route
+          </button>
+        </div>
       </div>
     </main>
   )
