@@ -131,6 +131,15 @@ const RouteHistory = () => {
     setSelectedRouteId(null)
   }
 
+  const handleRefresh = () => {
+    setSelectedIds([])
+    setSelectedRouteId(null)
+    setSearchInput('')
+    setSearch('')
+    setRoutes(routeHistoryData)
+    setOwnerRoutes(ownerRouteHistoryData)
+  }
+
   const hasSelection = selectedIds.length > 0
 
   return (
@@ -275,6 +284,13 @@ const RouteHistory = () => {
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#e7e7e7] bg-[#fafafa] p-2">
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="rounded bg-[#151d56] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#1f2b7b] cursor-pointer"
+          >
+            Refresh
+          </button>
           <button
             type="button"
             onClick={deleteSelected}
