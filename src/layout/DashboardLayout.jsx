@@ -12,7 +12,7 @@ const breadcrumbMap = {
   '/dashboard/edit-user': ['Home', 'Manage', 'Edit user'],
   '/dashboard/manage/plan': ['Home', 'Manage', 'Plan'],
   '/dashboard/manage/team-users': ['Home', 'Manage', 'Team users'],
-  '/dashboard/manage/team-route-history': ['Home', 'Manage', 'Team route history'],
+  '/dashboard/manage/team-route-history': ['Home', 'Manage', 'Team driver route history'],
   '/dashboard/security/delete-account': ['Home', 'Security', 'Delete account'],
   '/dashboard/security/data-protection': ['Home', 'Security', 'Data protection'],
   '/dashboard/support/contact': ['Home', 'Support', 'Contact Us'],
@@ -43,7 +43,7 @@ const DashboardLayout = () => {
     <div className="min-h-screen bg-slate-50">
       {/* Full-width header row */}
       <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center bg-gradient-to-b from-[#1B235E] to-[#190F0C] md:h-[72px]" style={{ background: 'linear-gradient(180deg, #1B235E 0%, #190F0C 100%)' }}>
-          <Header onMenuClick={handleMenuClick} />
+        <Header onMenuClick={handleMenuClick} />
       </header>
 
       <div className="fixed inset-x-0 top-16 z-30 flex h-10 items-center bg-[#ff823d] px-9 text-base font-medium text-white md:top-[72px] md:h-11">
@@ -85,9 +85,8 @@ const DashboardLayout = () => {
         )}
 
         <aside
-          className={`fixed top-[92px] bottom-0 left-0 z-20 w-60 transform overflow-y-auto border-r border-gray-200 bg-white px-4 py-5 transition-transform duration-300 ease-in-out md:top-[100px] md:translate-x-0 ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+          className={`fixed top-[92px] bottom-0 left-0 z-20 w-60 transform overflow-y-auto border-r border-gray-200 bg-white px-4 py-5 transition-transform duration-300 ease-in-out md:top-[100px] md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
         >
           <Sidebar isOpen={sidebarOpen} onClose={handleCloseSidebar} />
         </aside>

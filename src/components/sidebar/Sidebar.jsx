@@ -7,7 +7,7 @@ const menuGroups = [
       { label: 'Email/password', path: '/dashboard/manage/email' },
       { label: 'Admin users', path: '/dashboard/manage/admin-users' },
       { label: 'Team users', path: '/dashboard/manage/team-users' },
-      // { label: 'Team route history', path: '/dashboard/manage/team-route-history' },
+      { label: 'Team driver route history', path: '/dashboard/manage/team-route-history' },
       { label: 'Plan', path: '/dashboard/manage/plan' },
     ],
   },
