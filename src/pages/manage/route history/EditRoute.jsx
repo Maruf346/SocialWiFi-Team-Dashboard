@@ -268,7 +268,13 @@ const EditRoute = () => {
         {/* Map column */}
         <div className="flex flex-col min-w-0 flex-1">
           <div
-            className="relative overflow-hidden rounded border border-[#ddd]"
+            className={`relative overflow-hidden rounded border border-[#ddd] ${
+              settingPin === 'start'
+                ? 'cursor-pin-start'
+                : settingPin === 'end'
+                ? 'cursor-pin-end'
+                : ''
+            }`}
             style={{ height: 460 }}
           >
             {settingPin && (

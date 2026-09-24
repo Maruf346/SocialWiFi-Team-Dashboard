@@ -20,3 +20,26 @@ body,
   font-family: "Poppins", sans-serif;
 }
 
+/* ─── Map Pin Cursor Styles for Leaflet ─────────────────────────────────── */
+.cursor-pin-start,
+.cursor-pin-start .leaflet-container,
+.cursor-pin-start .leaflet-grab,
+.cursor-pin-start .leaflet-interactive {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' fill='none'%3E%3Cpath d='M16 2C10.5 2 6 6.5 6 12C6 19.5 16 30 16 30C16 30 26 19.5 26 12C26 6.5 21.5 2 16 2Z' fill='%2322a651' stroke='%23ffffff' stroke-width='2'/%3E%3Ccircle cx='16' cy='12' r='4' fill='%23ffffff'/%3E%3C/svg%3E") 16 30, crosshair !important;
+}
+
+.cursor-pin-end,
+.cursor-pin-end .leaflet-container,
+.cursor-pin-end .leaflet-grab,
+.cursor-pin-end .leaflet-interactive {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' fill='none'%3E%3Cpath d='M16 2C10.5 2 6 6.5 6 12C6 19.5 16 30 16 30C16 30 26 19.5 26 12C26 6.5 21.5 2 16 2Z' fill='%23e53935' stroke='%23ffffff' stroke-width='2'/%3E%3Ccircle cx='16' cy='12' r='4' fill='%23ffffff'/%3E%3C/svg%3E") 16 30, crosshair !important;
+}
+
+.cursor-pin-generic,
+.cursor-pin-generic .leaflet-container,
+.cursor-pin-generic .leaflet-grab,
+.cursor-pin-generic .leaflet-interactive {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' fill='none'%3E%3Cpath d='M16 2C10.5 2 6 6.5 6 12C6 19.5 16 30 16 30C16 30 26 19.5 26 12C26 6.5 21.5 2 16 2Z' fill='%23eb7035' stroke='%23ffffff' stroke-width='2'/%3E%3Ccircle cx='16' cy='12' r='4' fill='%23ffffff'/%3E%3C/svg%3E") 16 30, crosshair !important;
+}
+
+

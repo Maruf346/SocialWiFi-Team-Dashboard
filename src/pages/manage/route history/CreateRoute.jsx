@@ -477,7 +477,16 @@ const CreateRoute = () => {
           )}
 
           {/* Map */}
-          <div className="relative overflow-hidden rounded border border-[#ddd]" style={{ height: 480 }}>
+          <div
+            className={`relative overflow-hidden rounded border border-[#ddd] ${
+              settingPin === 'start'
+                ? 'cursor-pin-start'
+                : settingPin === 'end'
+                ? 'cursor-pin-end'
+                : ''
+            }`}
+            style={{ height: 480 }}
+          >
             {settingPin && (
               <div className="pointer-events-none absolute inset-x-0 top-2 z-[500] flex justify-center">
                 <span className="rounded bg-black/70 px-3 py-1 text-[12px] font-semibold text-white">
