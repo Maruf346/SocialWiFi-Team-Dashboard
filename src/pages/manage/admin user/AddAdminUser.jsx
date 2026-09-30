@@ -1,71 +1,111 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { useNavigate } from 'react-router'
-import { addAdminUser, getPermissionKey, permissionGroups } from '../../../utils/adminStore'
+import { useAuth } from '../../../context/useAuth'
+import { teamManageApi } from '../../../services/teamManageApi'
+
+const defaultFormData = {
+  full_name: '',
+  email: '',
+  phone: '',
+  role_label: 'Team Admin',
+}
 
 const AddAdminUser = () => {
   const navigate = useNavigate()
+  const { accessToken } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
-  const [password, setPassword] = useState('ay4cczbZYOI1uB')
-  const [formData, setFormData] = useState({
-    name: 'Eric Little',
-    email: 'el2609@gmail.com',
-    phone: '612-123-4567',
-    role: 'Legal Adviser',
-  })
-  const [selectedPermissions, setSelectedPermissions] = useState([
-    getPermissionKey('Admin', 'Admin user list'),
-    getPermissionKey('Admin', 'Add admin user'),
-    getPermissionKey('Team Users', 'Manage'),
-  ])
+  const [password, setPassword] = useState('')
+  const [formData, setFormData] = useState(defaultFormData)
+  const [selectedPermissions, setSelectedPermissions] = useState([])
+  const [permissionTree, setPermissionTree] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const loadPermissions = useCallback(async (signal) => {
+    if (!accessToken) return
+
+    setIsLoading(true)
+    setError('')
+
+    try {
+      const data = await teamManageApi.getPermissionsTree(accessToken, { signal })
+      setPermissionTree(Array.isArray(data.permission_tree) ? data.permission_tree : [])
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        setError(err.message || 'Unable to load permissions.')
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }, [accessToken])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => {
+      loadPermissions(controller.signal)
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [loadPermissions])
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
   const handleToggleGroup = (group) => {
-    const allGroupKeys = group.items.map((item) => getPermissionKey(group.title, item))
-    const isGroupChecked = allGroupKeys.every((key) =>
+    const allGroupKeys = (group.children || []).map((item) => item.key)
+    const isGroupChecked = allGroupKeys.length > 0 && allGroupKeys.every((key) =>
       selectedPermissions.includes(key),
     )
 
-    if (isGroupChecked) {
-      setSelectedPermissions((prev) =>
-        prev.filter((key) => !allGroupKeys.includes(key)),
-      )
-    } else {
-      setSelectedPermissions((prev) =>
-        Array.from(new Set([...prev, ...allGroupKeys])),
-      )
-    }
+    setSelectedPermissions((prev) =>
+      isGroupChecked
+        ? prev.filter((key) => !allGroupKeys.includes(key))
+        : Array.from(new Set([...prev, ...allGroupKeys])),
+    )
   }
 
-  const handleToggleItem = (groupTitle, item) => {
-    const key = getPermissionKey(groupTitle, item)
+  const handleToggleItem = (key) => {
     setSelectedPermissions((prev) =>
       prev.includes(key)
-        ? prev.filter((perm) => perm !== key)
+        ? prev.filter((permission) => permission !== key)
         : [...prev, key],
     )
   }
 
-  const generatePassword = () => {
-    const randomPassword = 'ay4cczbZYOI1uB'
-    setPassword(randomPassword)
+  const generatePassword = async () => {
+    setError('')
+
+    try {
+      const response = await teamManageApi.generateAdminPassword(accessToken)
+      setPassword(response.password || '')
+    } catch (err) {
+      setError(err.message || 'Unable to generate password.')
+    }
   }
 
-  const handleAddSubmit = (event) => {
+  const handleAddSubmit = async (event) => {
     event.preventDefault()
-    addAdminUser({
-      name: formData.name || 'Eric Little',
-      email: formData.email || 'el2609@gmail.com',
-      phone: formData.phone || '612-123-4567',
-      role: formData.role || 'Legal Adviser',
-      status: 'Allowed',
-      isSuperAdmin: false,
-      permissions: selectedPermissions,
-    })
-    navigate('/dashboard/manage/admin-users')
+    setIsSaving(true)
+    setError('')
+
+    try {
+      await teamManageApi.createAdminUser(accessToken, {
+        ...formData,
+        password,
+        permissions_json: selectedPermissions,
+      })
+      navigate('/dashboard/manage/admin-users')
+    } catch (err) {
+      setError(err.message || 'Unable to add admin user.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -74,26 +114,30 @@ const AddAdminUser = () => {
         Add admin user
       </h1>
 
+      {error && (
+        <div className="mx-auto mb-4 max-w-5xl rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <form className="mx-auto max-w-5xl" onSubmit={handleAddSubmit}>
         <div className="space-y-2">
           {[
-            ['Name:', 'name', formData.name, 'text'],
+            ['Name:', 'full_name', formData.full_name, 'text'],
             ['Email:', 'email', formData.email, 'email'],
             ['Phone:', 'phone', formData.phone, 'tel'],
-            ['Role:', 'role', formData.role, 'text'],
+            ['Role:', 'role_label', formData.role_label, 'text'],
           ].map(([label, field, val, type]) => (
-            <div
-              key={label}
-              className="flex items-center border-b border-[#e5e5e5] pb-2"
-            >
+            <div key={label} className="flex items-center border-b border-[#e5e5e5] pb-2">
               <label className="w-36 px-2 text-xs font-semibold">{label}</label>
               <input
                 type={type}
                 value={val}
-                onChange={(e) => handleInputChange(field, e.target.value)}
+                onChange={(event) => handleInputChange(field, event.target.value)}
                 placeholder={label.replace(':', '')}
                 aria-label={label.replace(':', '')}
                 className="h-7 w-60 rounded border border-[#d5d5d5] px-2 text-xs text-gray-600 outline-none focus:border-[#1d2464]"
+                required={field === 'full_name' || field === 'email'}
               />
             </div>
           ))}
@@ -108,6 +152,8 @@ const AddAdminUser = () => {
                   onChange={(event) => setPassword(event.target.value)}
                   aria-label="Password"
                   className="h-7 w-60 rounded border border-[#d5d5d5] bg-white px-2 pr-8 text-xs text-gray-600 outline-none"
+                  required
+                  minLength={8}
                 />
                 <button
                   type="button"
@@ -115,11 +161,7 @@ const AddAdminUser = () => {
                   onClick={() => setShowPassword((value) => !value)}
                   className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center text-[#666] hover:text-[#1d2464]"
                 >
-                  {showPassword ? (
-                    <EyeOff size={14} strokeWidth={2} />
-                  ) : (
-                    <Eye size={14} strokeWidth={2} />
-                  )}
+                  {showPassword ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
                 </button>
               </div>
               <button
@@ -133,19 +175,21 @@ const AddAdminUser = () => {
           </div>
         </div>
 
-        {/* Permissions Section */}
         <fieldset className="mt-4 flex border-b border-[#e5e5e5] py-4">
           <legend className="w-36 px-2 text-xs font-semibold text-[#555]">
             Permissions:
           </legend>
           <div className="grid flex-1 grid-cols-1 gap-x-12 gap-y-4 md:grid-cols-2">
-            {permissionGroups.map((group) => {
-              const allGroupKeys = group.items.map((item) => getPermissionKey(group.title, item))
-              const isGroupChecked = allGroupKeys.length > 0 && allGroupKeys.every((key) =>
+            {isLoading ? (
+              <p className="text-xs text-[#666]">Loading permissions...</p>
+            ) : permissionTree.map((group) => {
+              const children = group.children || []
+              const childKeys = children.map((item) => item.key)
+              const isGroupChecked = childKeys.length > 0 && childKeys.every((key) =>
                 selectedPermissions.includes(key),
               )
               return (
-                <div key={group.title} className="space-y-1">
+                <div key={group.key} className="space-y-1">
                   <div>
                     <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#444] cursor-pointer w-max">
                       <input
@@ -154,27 +198,21 @@ const AddAdminUser = () => {
                         onChange={() => handleToggleGroup(group)}
                         className="accent-[#ff823d] cursor-pointer"
                       />
-                      <span>{group.title}</span>
+                      <span>{group.label}</span>
                     </label>
                   </div>
                   <div className="ml-5 space-y-1 flex flex-col items-start">
-                    {group.items.map((item) => {
-                      const itemKey = getPermissionKey(group.title, item)
-                      return (
-                        <label
-                          key={item}
-                          className="inline-flex items-center gap-1.5 text-xs text-[#666] cursor-pointer w-max"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedPermissions.includes(itemKey)}
-                            onChange={() => handleToggleItem(group.title, item)}
-                            className="accent-[#ff823d] cursor-pointer"
-                          />
-                          <span>{item}</span>
-                        </label>
-                      )
-                    })}
+                    {children.map((item) => (
+                      <label key={item.key} className="inline-flex items-center gap-1.5 text-xs text-[#666] cursor-pointer w-max">
+                        <input
+                          type="checkbox"
+                          checked={selectedPermissions.includes(item.key)}
+                          onChange={() => handleToggleItem(item.key)}
+                          className="accent-[#ff823d] cursor-pointer"
+                        />
+                        <span>{item.label}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
               )
@@ -185,7 +223,8 @@ const AddAdminUser = () => {
         <div className="mt-6 flex gap-2 rounded-lg border border-[#e5e5e5] bg-[#fafafa] p-3">
           <button
             type="submit"
-            className="rounded bg-[#1d2464] px-4 py-2 text-xs font-bold text-white hover:bg-[#ff823d] transition-colors cursor-pointer"
+            disabled={isSaving}
+            className="rounded bg-[#1d2464] px-4 py-2 text-xs font-bold text-white hover:bg-[#ff823d] transition-colors disabled:opacity-60 cursor-pointer"
           >
             ADD
           </button>

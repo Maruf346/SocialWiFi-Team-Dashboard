@@ -70,4 +70,76 @@ export const teamManageApi = {
       token,
     })
   },
+
+  listAdminUsers(token, options = {}) {
+    return apiRequest(`${MANAGE_BASE}/admin-users/`, {
+      token,
+      signal: options.signal,
+    })
+  },
+
+  createAdminUser(token, payload) {
+    return apiRequest(`${MANAGE_BASE}/admin-users/`, {
+      method: 'POST',
+      token,
+      body: payload,
+    })
+  },
+
+  getAdminUser(token, userId, options = {}) {
+    return apiRequest(`${MANAGE_BASE}/admin-users/${userId}/`, {
+      token,
+      signal: options.signal,
+    })
+  },
+
+  updateAdminUser(token, userId, payload) {
+    return apiRequest(`${MANAGE_BASE}/admin-users/${userId}/`, {
+      method: 'PATCH',
+      token,
+      body: payload,
+    })
+  },
+
+  deleteAdminUser(token, userId) {
+    return apiRequest(`${MANAGE_BASE}/admin-users/${userId}/`, {
+      method: 'DELETE',
+      token,
+    })
+  },
+
+  lockAdminUser(token, userId) {
+    return apiRequest(`${MANAGE_BASE}/admin-users/${userId}/lock/`, {
+      method: 'POST',
+      token,
+    })
+  },
+
+  unlockAdminUser(token, userId) {
+    return apiRequest(`${MANAGE_BASE}/admin-users/${userId}/unlock/`, {
+      method: 'POST',
+      token,
+    })
+  },
+
+  bulkAdminAction(token, adminIds, action) {
+    return apiRequest(`${MANAGE_BASE}/admin-users/bulk-action/`, {
+      method: 'POST',
+      token,
+      body: { admin_ids: adminIds, action },
+    })
+  },
+
+  generateAdminPassword(token) {
+    return apiRequest(`${MANAGE_BASE}/admin-users/generate-password/`, {
+      token,
+    })
+  },
+
+  getPermissionsTree(token, options = {}) {
+    return apiRequest(`${MANAGE_BASE}/permissions-tree/`, {
+      token,
+      signal: options.signal,
+    })
+  },
 }
