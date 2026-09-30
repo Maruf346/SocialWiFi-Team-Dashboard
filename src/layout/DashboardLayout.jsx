@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import { Link, Outlet, useLocation } from 'react-router'
+import { Link, Navigate, Outlet, useLocation } from 'react-router'
 import Sidebar from '../components/sidebar/Sidebar'
 import Header from '../components/header/Header'
+import { useAuth } from '../context/useAuth'
 
 const breadcrumbMap = {
   '/dashboard/manage/email': ['Home', 'Manage', 'Email/Password'],
@@ -21,12 +22,13 @@ const breadcrumbMap = {
   '/dashboard/support/resources': ['Home', 'Support', 'Resources'],
   '/dashboard/legal/privacy-policy': ['Home', 'Legal', 'Privacy Policy'],
   '/dashboard/legal/terms-of-use': ['Home', 'Legal', 'Terms of Use'],
-  '/dashboard/legal/disclaimer': ['Home', 'Legal', 'Disclaimer']
+  '/dashboard/legal/disclaimer': ['Home', 'Legal', 'Disclaimer'],
 }
 
 const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
+  const { isAuthenticated, isSessionLoading } = useAuth()
 
   const breadcrumb =
     location.pathname.startsWith('/dashboard/manage/admin-users/edit/')
@@ -35,17 +37,28 @@ const DashboardLayout = () => {
       ? ['Home', 'Manage', 'Team driver route history', 'Edit Route']
       : breadcrumbMap[location.pathname] || ['Home']
 
+  if (isSessionLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-gray-600">
+        Loading dashboard...
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace state={{ from: location.pathname }} />
+  }
+
   const handleMenuClick = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
+    setSidebarOpen(!sidebarOpen)
+  }
 
   const handleCloseSidebar = () => {
-    setSidebarOpen(false);
-  };
+    setSidebarOpen(false)
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Full-width header row */}
       <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center bg-gradient-to-b from-[#1B235E] to-[#190F0C] md:h-[72px]" style={{ background: 'linear-gradient(180deg, #1B235E 0%, #190F0C 100%)' }}>
         <Header onMenuClick={handleMenuClick} />
       </header>
@@ -79,7 +92,6 @@ const DashboardLayout = () => {
         </div>
       </div>
 
-      {/* Sidebar and page content row */}
       <div className="min-h-screen pt-[92px] md:pl-60 md:pt-[100px]">
         {sidebarOpen && (
           <div
