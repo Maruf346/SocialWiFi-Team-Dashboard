@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router'
 import {
@@ -11,43 +11,43 @@ import {
   permissionGroups,
 } from '../../../utils/adminStore'
 
+const defaultUser = {
+  name: 'John Doe',
+  email: 'Johnd@gmail.com',
+  phone: '701-555-1234',
+  role: 'User Management',
+}
+
+const normalizePermissions = (permissions) => {
+  if (Array.isArray(permissions)) {
+    return permissions.map((perm) => {
+      if (perm.includes('::')) return perm
+      for (const group of permissionGroups) {
+        if (group.items.includes(perm)) {
+          return getPermissionKey(group.title, perm)
+        }
+      }
+      return perm
+    })
+  }
+
+  if (typeof permissions === 'object' && permissions !== null) {
+    return Object.keys(permissions).filter((key) => permissions[key])
+  }
+
+  return []
+}
+
 const EditAdminUser = () => {
   const navigate = useNavigate()
   const { id } = useParams()
-  const [user, setUser] = useState({
-    name: 'John Doe',
-    email: 'Johnd@gmail.com',
-    phone: '701-555-1234',
-    role: 'User Management',
-  })
+  const existingUser = getAdminUserById(id)
+  const [user, setUser] = useState(() => existingUser ?? defaultUser)
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('ay4cczbZYOI1uB')
-  const [selectedPermissions, setSelectedPermissions] = useState([])
-
-  useEffect(() => {
-    const existing = getAdminUserById(id)
-    if (existing) {
-      setUser(existing)
-      if (Array.isArray(existing.permissions)) {
-        const normalized = existing.permissions.map((perm) => {
-          if (perm.includes('::')) return perm
-          for (const group of permissionGroups) {
-            if (group.items.includes(perm)) {
-              return getPermissionKey(group.title, perm)
-            }
-          }
-          return perm
-        })
-        setSelectedPermissions(normalized)
-      } else if (typeof existing.permissions === 'object' && existing.permissions !== null) {
-        setSelectedPermissions(
-          Object.keys(existing.permissions).filter((key) => existing.permissions[key]),
-        )
-      } else {
-        setSelectedPermissions([])
-      }
-    }
-  }, [id])
+  const [selectedPermissions, setSelectedPermissions] = useState(() =>
+    normalizePermissions(existingUser?.permissions),
+  )
 
   const handleInputChange = (field, value) => {
     setUser((prev) => ({ ...prev, [field]: value }))

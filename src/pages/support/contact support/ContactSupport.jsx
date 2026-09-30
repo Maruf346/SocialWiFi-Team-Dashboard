@@ -1,5 +1,3 @@
-import React from "react";
-
 const ContactSupport = () => {
   return (
     <div className="min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">

@@ -93,7 +93,7 @@ async function fetchRoadPath(points) {
     if (data.routes?.[0]) {
       return data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng])
     }
-  } catch (_) { /* silent */ }
+  } catch { /* silent */ }
   return points.map((p) => [p.lat, p.lng])
 }
 
@@ -139,7 +139,7 @@ const EditRoute = () => {
     if (allPts.length) {
       mapRef.current.fitBounds(L.latLngBounds(allPts), { padding: [40, 40] })
     }
-  }, [])
+  }, [startPoint, endPoint, permits])
 
   // ── Map click for pin placement ─────────────────────────────────────────
   const handleMapClick = useCallback((e) => {

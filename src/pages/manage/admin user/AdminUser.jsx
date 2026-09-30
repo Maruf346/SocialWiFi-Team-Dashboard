@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import {
   getAdminUsers,
@@ -10,14 +10,11 @@ import {
 const currentSuperAdminId = 'USR-1001'
 
 const AdminUser = () => {
-  const [adminUsers, setAdminUsers] = useState([])
+  const [adminUsers, setAdminUsers] = useState(() => getAdminUsers())
   const [selectedUsers, setSelectedUsers] = useState([])
   const [selectedAction, setSelectedAction] = useState('')
   const navigate = useNavigate()
 
-  useEffect(() => {
-    setAdminUsers(getAdminUsers())
-  }, [])
 
   const toggleUser = (userId) => {
     setSelectedUsers((currentUsers) =>

@@ -67,7 +67,7 @@ async function fetchRoadPath(points) {
     if (data.routes?.[0]) {
       return data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng])
     }
-  } catch (_) { /* silent – fall back to straight lines */ }
+  } catch { /* silent – fall back to straight lines */ }
   return points.map((p) => [p.lat, p.lng])
 }
 
@@ -92,7 +92,6 @@ const CreateRoute = () => {
   const [permitText, setPermitText]     = useState('')
   const [permitFile, setPermitFile]     = useState(null)
   const [startInput, setStartInput]     = useState('')
-  const [endInput, setEndInput]         = useState('')
   const [startPoint, setStartPoint]     = useState(null)   // { lat, lng }
   const [endPoint, setEndPoint]         = useState(null)   // { lat, lng }
   const [settingPin, setSettingPin]     = useState(null)   // 'start' | 'end' | null
@@ -133,7 +132,7 @@ const CreateRoute = () => {
     if (allPts.length) {
       mapRef.current.fitBounds(L.latLngBounds(allPts), { padding: [40, 40] })
     }
-  }, [step])
+  }, [step, startPoint, endPoint, permits])
 
   // ── Map click → set start or end pin ─────────────────────────────────────
   const handleMapClick = useCallback((e) => {
@@ -144,7 +143,6 @@ const CreateRoute = () => {
       setStartInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`)
     } else {
       setEndPoint({ lat, lng })
-      setEndInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`)
     }
     setSettingPin(null)
   }, [settingPin])
