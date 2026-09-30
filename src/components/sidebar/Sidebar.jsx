@@ -11,7 +11,7 @@ const menuGroups = [
       {
         label: 'Team driver route history',
         path: '/dashboard/manage/team-route-history',
-        anyPermission: ['manage.route_history.team', 'manage.route_history.my'],
+        permission: 'manage.route_history.team',
       },
       { label: 'Plan', path: '/dashboard/manage/plan', permission: 'manage.plan' },
     ],

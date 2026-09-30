@@ -30,9 +30,6 @@ const withPermission = (permission, element) => (
   <RequirePermission permission={permission}>{element}</RequirePermission>
 )
 
-const withAnyPermission = (anyPermission, element) => (
-  <RequirePermission anyPermission={anyPermission}>{element}</RequirePermission>
-)
 
 export const router = createBrowserRouter([
   {
@@ -59,15 +56,15 @@ export const router = createBrowserRouter([
       { path: 'manage/team-users', element: withPermission('manage.team_users', <TeamUser />) },
       {
         path: 'manage/team-route-history',
-        element: withAnyPermission(['manage.route_history.team', 'manage.route_history.my'], <RouteHistory />),
+        element: withPermission('manage.route_history.team', <RouteHistory />),
       },
       {
         path: 'manage/team-route-history/create',
-        element: withAnyPermission(['manage.route_history.team', 'manage.route_history.my'], <CreateRoute />),
+        element: withPermission('manage.route_history.team', <CreateRoute />),
       },
       {
         path: 'manage/team-route-history/edit/:routeId',
-        element: withAnyPermission(['manage.route_history.team', 'manage.route_history.my'], <EditRoute />),
+        element: withPermission('manage.route_history.team', <EditRoute />),
       },
       { path: 'manage/plan', element: withPermission('manage.plan', <Plan />) },
       { path: 'security/delete-account', element: withPermission('security.delete_account', <DeleteAccount />) },

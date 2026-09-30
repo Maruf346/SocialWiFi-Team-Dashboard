@@ -12,6 +12,18 @@ const filterToApiValue = (filter) => {
   return undefined
 }
 
+
+const getRouteHistoryPath = (user) => {
+  const params = new URLSearchParams()
+  const driverUserId = user.user_id || user.id
+
+  if (driverUserId) params.set('user_id', driverUserId)
+  if (user.name) params.set('driver_name', user.name)
+  if (user.email) params.set('user_email', user.email)
+
+  const query = params.toString()
+  return `/dashboard/manage/team-route-history${query ? `?${query}` : ''}`
+}
 const downloadFile = (content, filename) => {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
@@ -428,7 +440,7 @@ const TeamUser = () => {
                         <td className="px-4 py-1 text-center" onClick={(event) => event.stopPropagation()}>
                           <button
                             type="button"
-                            onClick={() => navigate('/dashboard/manage/team-route-history')}
+                            onClick={() => navigate(getRouteHistoryPath(user))}
                             className="text-[#777] hover:text-[#ff823d] p-0.5 cursor-pointer inline-flex items-center justify-center"
                             aria-label={`Route history for ${user.name}`}
                           >

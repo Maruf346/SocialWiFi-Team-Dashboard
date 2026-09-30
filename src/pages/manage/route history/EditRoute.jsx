@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router'
 import {
   MapContainer,
   Marker,
@@ -9,6 +9,8 @@ import {
   useMapEvents,
 } from 'react-leaflet'
 import L from 'leaflet'
+import { useAuth } from '../../../context/useAuth'
+import { teamManageApi } from '../../../services/teamManageApi'
 
 // ─── Fix default leaflet marker icons ────────────────────────────────────────
 delete L.Icon.Default.prototype._getIconUrl
@@ -81,6 +83,52 @@ const makeFallbackRoute = (id, name) => ({
   ],
 })
 
+
+const normalizePermit = (permit = {}, index = 0) => ({
+  id: permit.id ?? `permit-${index + 1}`,
+  label: permit.name || `Permit ${index + 1}`,
+  name: permit.name || `Permit ${index + 1}`,
+  startLocation: permit.start_location || 'Start',
+  startPoint: {
+    lat: Number(permit.start_latitude ?? 41.59),
+    lng: Number(permit.start_longitude ?? -93.62),
+  },
+  endLocation: permit.end_location || 'End',
+  endPoint: {
+    lat: Number(permit.end_latitude ?? 41.55),
+    lng: Number(permit.end_longitude ?? -93.62),
+  },
+  permitText: permit.permit_text || '',
+  waypoints: Array.isArray(permit.waypoints) && permit.waypoints.length
+    ? permit.waypoints.map((waypoint, waypointIndex) => ({
+        id: waypoint.id ?? `wp-${index}-${waypointIndex}`,
+        name: waypoint.name || `Waypoint ${waypointIndex + 1}`,
+        lat: Number(waypoint.latitude ?? waypoint.lat ?? permit.start_latitude ?? 41.58),
+        lng: Number(waypoint.longitude ?? waypoint.lng ?? permit.start_longitude ?? -93.62),
+        waypointType: waypoint.waypoint_type || 'CHECKPOINT',
+        description: waypoint.description || null,
+        etaMinutes: waypoint.eta_minutes ?? 0,
+      }))
+    : [],
+})
+
+const normalizeRouteDetail = (response, fallback) => {
+  const route = response?.data || response?.route || response
+  const permits = Array.isArray(route?.permits) && route.permits.length
+    ? route.permits.map(normalizePermit)
+    : fallback.permits
+
+  const firstPermit = permits[0]
+  const lastPermit = permits.at(-1) || firstPermit
+
+  return {
+    name: route?.name || fallback.name,
+    startPoint: firstPermit?.startPoint || fallback.startPoint,
+    endPoint: lastPermit?.endPoint || firstPermit?.endPoint || fallback.endPoint,
+    permits,
+  }
+}
+
 // ─── OSRM road-path ───────────────────────────────────────────────────────────
 async function fetchRoadPath(points) {
   if (points.length < 2) return []
@@ -105,11 +153,14 @@ const MapClickHandler = ({ onMapClick }) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 const EditRoute = () => {
-  const navigate                = useNavigate()
-  const { routeId, driverName = 'Caleb Brooks' } = useParams()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { routeId } = useParams()
+  const { accessToken } = useAuth()
+  const driverName = location.state?.driverName || 'Selected driver'
 
   // Load mock data
-  const initial = MOCK_ROUTES[Number(routeId)] ?? makeFallbackRoute(routeId)
+  const initial = useMemo(() => MOCK_ROUTES[Number(routeId)] ?? makeFallbackRoute(routeId), [routeId])
 
   const [routeName,   setRouteName]   = useState(initial.name)
   const [startPoint,  setStartPoint]  = useState(initial.startPoint)
@@ -118,7 +169,42 @@ const EditRoute = () => {
   const [routePath,   setRoutePath]   = useState([])
   const [settingPin,  setSettingPin]  = useState(null)  // 'start' | 'end' | null
   const [saved,       setSaved]       = useState(false)
+  const [error,       setError]       = useState('')
+  const [isLoading,   setIsLoading]   = useState(true)
+  const [isSaving,    setIsSaving]    = useState(false)
   const mapRef = useRef(null)
+
+  useEffect(() => {
+    if (!accessToken || !routeId) return undefined
+
+    const controller = new AbortController()
+
+    const loadRoute = async () => {
+      await Promise.resolve()
+      setIsLoading(true)
+      setError('')
+
+      try {
+        const response = await teamManageApi.getRoute(accessToken, routeId, {
+          signal: controller.signal,
+        })
+        const nextRoute = normalizeRouteDetail(response, initial)
+        setRouteName(nextRoute.name)
+        setStartPoint(nextRoute.startPoint)
+        setEndPoint(nextRoute.endPoint)
+        setPermits(nextRoute.permits)
+      } catch (loadError) {
+        if (loadError.name !== 'AbortError') {
+          setError(loadError.message || 'Unable to load route detail.')
+        }
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    void loadRoute()
+    return () => controller.abort()
+  }, [accessToken, initial, routeId])
 
   // ── Fetch road path ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -203,9 +289,55 @@ const EditRoute = () => {
     ])
   }
 
-  const handleSave = () => {
-    setSaved(true)
-    setTimeout(() => navigate('/dashboard/manage/team-route-history'), 1200)
+  const handleSave = async () => {
+    setIsSaving(true)
+    setSaved(false)
+    setError('')
+
+    try {
+      await teamManageApi.updateRouteMap(accessToken, routeId, {
+        name: routeName.trim(),
+        description: '',
+        status: 'DRAFT',
+        is_completed: false,
+        permits: permits.map((permit, permitIndex) => {
+          const permitStart = permit.startPoint || startPoint
+          const permitEnd = permit.endPoint || endPoint
+
+          return {
+            id: Number.isInteger(permit.id) ? permit.id : undefined,
+            index: permitIndex + 1,
+            name: permit.name || permit.label || `Permit ${permitIndex + 1}`,
+            start_location: permit.startLocation || 'Start',
+            start_latitude: permitStart.lat,
+            start_longitude: permitStart.lng,
+            end_location: permit.endLocation || permit.waypoints.at(-1)?.name || 'End',
+            end_latitude: permitEnd.lat,
+            end_longitude: permitEnd.lng,
+            permit_text: permit.permitText || null,
+            waypoints: permit.waypoints.map((waypoint, waypointIndex) => ({
+              id: Number.isInteger(waypoint.id) ? waypoint.id : undefined,
+              index: waypointIndex + 1,
+              name: waypoint.name || `Waypoint ${waypointIndex + 1}`,
+              waypoint_type: waypoint.waypointType || 'CHECKPOINT',
+              latitude: waypoint.lat,
+              longitude: waypoint.lng,
+              description: waypoint.description || null,
+              eta_minutes: waypoint.etaMinutes ?? 0,
+            })),
+          }
+        }),
+        delete_missing_permits: false,
+        replace_waypoints: true,
+      })
+
+      setSaved(true)
+      window.setTimeout(() => navigate('/dashboard/manage/team-route-history'), 900)
+    } catch (saveError) {
+      setError(saveError.message || 'Unable to save route.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const allWaypoints = permits.flatMap((p) => p.waypoints)
@@ -224,6 +356,14 @@ const EditRoute = () => {
         <span className="text-lg">&lt;</span>
         <span>Driver&apos;s route history</span>
       </button>
+
+      {error && (
+        <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>
+      )}
+
+      {isLoading && (
+        <div className="mb-4 rounded border border-[#d9d9d9] bg-[#f0f0f0] px-3 py-2 text-[13px] text-[#666]">Loading route detail...</div>
+      )}
 
       <h2 className="mb-4 text-base font-semibold text-[#333]">
         Editing Route for: <span className="font-bold">{driverName}</span>
@@ -438,9 +578,10 @@ const EditRoute = () => {
         <button
           type="button"
           onClick={handleSave}
+          disabled={isSaving}
           className="rounded-full bg-[#22a651] px-20 py-2.5 text-sm font-bold tracking-widest text-white transition hover:bg-[#1a8040] cursor-pointer"
         >
-          SAVE
+          {isSaving ? 'SAVING...' : 'SAVE'}
         </button>
       </div>
     </main>

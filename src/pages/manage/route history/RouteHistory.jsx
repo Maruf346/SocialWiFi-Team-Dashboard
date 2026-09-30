@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Eye } from 'lucide-react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { useAuth } from '../../../context/useAuth'
 import { teamManageApi } from '../../../services/teamManageApi'
 
@@ -57,6 +57,7 @@ const downloadTextFile = (content, filename, type = 'text/csv;charset=utf-8;') =
 
 const RouteHistory = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { accessToken } = useAuth()
 
   const [routes, setRoutes] = useState([])
@@ -72,7 +73,10 @@ const RouteHistory = () => {
   const [waypointsError, setWaypointsError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
-  const routeScopeLabel = 'Team driver route history'
+  const driverUserId = searchParams.get('user_id') || ''
+  const driverName = searchParams.get('driver_name') || ''
+  const driverEmail = searchParams.get('user_email') || ''
+  const routeScopeLabel = driverName || driverEmail || 'Team driver route history'
 
   const fetchRoutes = useCallback(async (signal) => {
     if (!accessToken) return
@@ -84,7 +88,7 @@ const RouteHistory = () => {
     setSuccessMessage('')
 
     try {
-      const response = await teamManageApi.listRouteHistory(accessToken, {}, { signal })
+      const response = await teamManageApi.listRouteHistory(accessToken, { user_id: driverUserId, user_email: driverUserId ? undefined : driverEmail }, { signal })
       const nextRoutes = Array.isArray(response) ? response.map(normalizeRoute) : []
       setRoutes(nextRoutes)
       setSelectedIds([])
@@ -99,7 +103,7 @@ const RouteHistory = () => {
     } finally {
       setIsLoading(false)
     }
-  }, [accessToken])
+  }, [accessToken, driverEmail, driverUserId])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -261,7 +265,7 @@ const RouteHistory = () => {
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-[22px] font-bold text-[#333]">
-          Route History of: <span className="font-bold text-[#2d2d2d]">{selectedRoute?.driverName || routeScopeLabel}</span>
+          Route History of: <span className="font-bold text-[#2d2d2d]">{routeScopeLabel}</span>
         </h2>
 
         <div className="flex items-center gap-2">
@@ -440,7 +444,7 @@ const RouteHistory = () => {
             disabled={!selectedRouteId}
             onClick={() => {
               if (!selectedRouteId) return
-              navigate(`/dashboard/manage/team-route-history/edit/${selectedRouteId}`)
+              navigate(`/dashboard/manage/team-route-history/edit/${selectedRouteId}`, { state: { driverName: routeScopeLabel } })
             }}
             className={`rounded px-3 py-1.5 text-sm font-medium text-white transition ${
               selectedRouteId
@@ -452,7 +456,14 @@ const RouteHistory = () => {
           </button>
           <button
             type="button"
-            onClick={() => navigate('/dashboard/manage/team-route-history/create')}
+            onClick={() => {
+              const params = new URLSearchParams()
+              if (driverUserId) params.set('user_id', driverUserId)
+              if (driverName) params.set('driver_name', driverName)
+              if (driverEmail) params.set('user_email', driverEmail)
+              const query = params.toString()
+              navigate(`/dashboard/manage/team-route-history/create${query ? `?${query}` : ''}`)
+            }}
             className="rounded bg-[#ff823d] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#e56f2d] cursor-pointer"
           >
             Create New Route

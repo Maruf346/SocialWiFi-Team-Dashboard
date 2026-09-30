@@ -192,4 +192,80 @@ export const teamManageApi = {
       token,
     })
   },
+  getRoute(token, routeId, options = {}) {
+    return apiRequest(`${MANAGE_BASE}/route-history/${routeId}/`, {
+      token,
+      signal: options.signal,
+    })
+  },
+
+  updateRoute(token, routeId, payload) {
+    return apiRequest(`${MANAGE_BASE}/route-history/${routeId}/`, {
+      method: 'PATCH',
+      token,
+      body: payload,
+    })
+  },
+
+  updateRouteMap(token, routeId, payload) {
+    return apiRequest(`${MANAGE_BASE}/route-history/${routeId}/map/`, {
+      method: 'PATCH',
+      token,
+      body: payload,
+    })
+  },
+
+  createDriverRoute(token, userId, payload) {
+    return apiRequest(`${MANAGE_BASE}/team-users/${userId}/routes/`, {
+      method: 'POST',
+      token,
+      body: payload,
+    })
+  },
+
+  addRoutePermit(token, routeId, payload) {
+    return apiRequest(`${MANAGE_BASE}/route-history/${routeId}/permits/`, {
+      method: 'POST',
+      token,
+      body: payload,
+    })
+  },
+
+  updateRoutePermit(token, routeId, permitId, payload) {
+    return apiRequest(`${MANAGE_BASE}/route-history/${routeId}/permits/${permitId}/`, {
+      method: 'PATCH',
+      token,
+      body: payload,
+    })
+  },
+
+  deleteRoutePermit(token, routeId, permitId) {
+    return apiRequest(`${MANAGE_BASE}/route-history/${routeId}/permits/${permitId}/`, {
+      method: 'DELETE',
+      token,
+    })
+  },
+
+  addRouteWaypoint(token, routeId, permitId, payload) {
+    return apiRequest(`${MANAGE_BASE}/route-history/${routeId}/permits/${permitId}/waypoints/`, {
+      method: 'POST',
+      token,
+      body: payload,
+    })
+  },
+
+  updateRouteWaypoint(token, routeId, permitId, waypointId, payload) {
+    return apiRequest(`${MANAGE_BASE}/route-history/${routeId}/permits/${permitId}/waypoints/${waypointId}/`, {
+      method: 'PATCH',
+      token,
+      body: payload,
+    })
+  },
+
+  deleteRouteWaypoint(token, routeId, permitId, waypointId) {
+    return apiRequest(`${MANAGE_BASE}/route-history/${routeId}/permits/${permitId}/waypoints/${waypointId}/`, {
+      method: 'DELETE',
+      token,
+    })
+  },
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import {
   MapContainer,
   Marker,
@@ -9,6 +9,8 @@ import {
   useMapEvents,
 } from 'react-leaflet'
 import L from 'leaflet'
+import { useAuth } from '../../../context/useAuth'
+import { teamManageApi } from '../../../services/teamManageApi'
 
 // ─── Fix default leaflet marker icons (Vite asset pipeline) ──────────────────
 delete L.Icon.Default.prototype._getIconUrl
@@ -84,7 +86,11 @@ async function geocodePlace(query) {
 // ─────────────────────────────────────────────────────────────────────────────
 const CreateRoute = () => {
   const navigate  = useNavigate()
-  const { driverName = 'Caleb Brooks' } = useParams()
+  const [searchParams] = useSearchParams()
+  const { accessToken } = useAuth()
+  const driverUserId = searchParams.get('user_id') || ''
+  const driverName = searchParams.get('driver_name') || searchParams.get('user_email') || 'Selected driver'
+  const routeHistoryPath = `/dashboard/manage/team-route-history${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
 
   // Step 1 state
   const [step, setStep]                 = useState(1)
@@ -97,6 +103,8 @@ const CreateRoute = () => {
   const [settingPin, setSettingPin]     = useState(null)   // 'start' | 'end' | null
   const [step1Error, setStep1Error]     = useState('')
   const [geocoding, setGeocoding]       = useState(false)
+  const [isSaving, setIsSaving]         = useState(false)
+  const [saveMessage, setSaveMessage]   = useState('')
 
   // Step 2 state
   const [permits, setPermits]           = useState([
@@ -250,9 +258,50 @@ const CreateRoute = () => {
   }
 
   // ── Save ──────────────────────────────────────────────────────────────────
-  const handleSave = () => {
-    // Build final route object (mock) and navigate back
-    navigate('/dashboard/manage/team-route-history')
+  const handleSave = async () => {
+    if (!driverUserId) {
+      setStep1Error('Please open route creation from a team user row.')
+      return
+    }
+    if (!routeName.trim() || !startPoint || !endPoint) {
+      setStep1Error('Please provide route name, start point, and end point.')
+      return
+    }
+
+    setIsSaving(true)
+    setStep1Error('')
+    setSaveMessage('')
+
+    try {
+      const allRouteWaypoints = permits.flatMap((permit) => permit.waypoints)
+      const response = await teamManageApi.createDriverRoute(accessToken, driverUserId, {
+        name: routeName.trim(),
+        description: '',
+        start_location: startInput.trim() || 'Start',
+        start_latitude: startPoint.lat,
+        start_longitude: startPoint.lng,
+        end_location: allRouteWaypoints.at(-1)?.name || 'End',
+        end_latitude: endPoint.lat,
+        end_longitude: endPoint.lng,
+        permit_text: permitText.trim() || null,
+        waypoints: allRouteWaypoints.map((waypoint, index) => ({
+          index: index + 1,
+          name: waypoint.name || `Waypoint ${index + 1}`,
+          waypoint_type: 'CHECKPOINT',
+          latitude: waypoint.lat,
+          longitude: waypoint.lng,
+          description: null,
+          eta_minutes: 0,
+        })),
+      })
+
+      setSaveMessage(response?.message || 'Route created successfully.')
+      window.setTimeout(() => navigate(routeHistoryPath), 700)
+    } catch (error) {
+      setStep1Error(error.message || 'Unable to create route.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   // ── All map points for step-2 rendering ──────────────────────────────────
@@ -269,7 +318,7 @@ const CreateRoute = () => {
       {/* Back link */}
       <button
         type="button"
-        onClick={() => step === 1 ? navigate('/dashboard/manage/team-route-history') : setStep(1)}
+        onClick={() => step === 1 ? navigate(routeHistoryPath) : setStep(1)}
         className="mb-5 inline-flex items-center gap-1 text-[13px] font-medium text-[#ff823d] cursor-pointer"
       >
         <span className="text-lg">&lt;</span>
@@ -714,12 +763,16 @@ const CreateRoute = () => {
 
           {/* SAVE */}
           <div className="flex justify-center py-4">
+            {saveMessage && (
+              <span className="text-[13px] font-semibold text-green-600">{saveMessage}</span>
+            )}
             <button
               type="button"
               onClick={handleSave}
+              disabled={isSaving}
               className="rounded-full bg-[#22a651] px-20 py-2.5 text-sm font-bold tracking-widest text-white transition hover:bg-[#1a8040] cursor-pointer"
             >
-              SAVE
+              {isSaving ? 'SAVING...' : 'SAVE'}
             </button>
           </div>
         </div>
