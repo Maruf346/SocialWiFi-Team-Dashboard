@@ -1,4 +1,57 @@
+import { useEffect, useState } from 'react'
+import { useAuth } from '../../../context/useAuth'
+import { teamManageApi } from '../../../services/teamManageApi'
+
+const formatDate = (value) => {
+  if (!value) return 'Not available'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  }).format(date)
+}
+
+const formatValue = (value) => {
+  if (value === null || value === undefined || value === '') return 'Not available'
+  return value
+}
+
 const Plan = () => {
+  const { accessToken } = useAuth()
+  const [plan, setPlan] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!accessToken) return
+
+    const controller = new AbortController()
+
+    const loadPlan = async () => {
+      setIsLoading(true)
+      setError('')
+
+      try {
+        const data = await teamManageApi.getPlan(accessToken, { signal: controller.signal })
+        setPlan(data)
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          setError(err.message || 'Unable to load plan details.')
+        }
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadPlan()
+
+    return () => controller.abort()
+  }, [accessToken])
+
   return (
     <div className="min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
       <h1 className="mb-8 text-xl font-normal text-[#999] md:text-2xl">
@@ -12,13 +65,26 @@ const Plan = () => {
               Current plan
             </h2>
 
-            <div className="space-y-3 text-[15px] leading-7 text-[#4d4d4d]">
-              <p>Fleet-438</p>
-              <p>Payment frequency: Yearly</p>
-              <p>Renewal date: 09/13/2026</p>
-              <p>Total number of users allowed: 438</p>
-              <p>Total enrolled users: 382</p>
-            </div>
+            {isLoading ? (
+              <p className="text-[15px] leading-7 text-[#4d4d4d]">Loading plan details...</p>
+            ) : error ? (
+              <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">
+                {error}
+              </div>
+            ) : (
+              <div className="space-y-3 text-[15px] leading-7 text-[#4d4d4d]">
+                <p>{formatValue(plan?.plan_name)}</p>
+                <p>Team name: {formatValue(plan?.team_name)}</p>
+                <p>Owner email: {formatValue(plan?.owner_email)}</p>
+                <p>Payment frequency: {formatValue(plan?.billing_frequency)}</p>
+                <p>Renewal date: {formatDate(plan?.renewal_date)}</p>
+                <p>Total number of users allowed: {formatValue(plan?.max_users_allowed)}</p>
+                <p>Total enrolled users: {formatValue(plan?.total_enrolled_users)}</p>
+                <p>Total registered users: {formatValue(plan?.total_registered_users)}</p>
+                <p>Slots remaining: {formatValue(plan?.slots_remaining)}</p>
+                <p>Status: {plan?.is_active ? 'Active' : 'Inactive'}</p>
+              </div>
+            )}
           </div>
 
           <div className="rounded-md border border-[#d4d4d4] bg-[#f2f2f2] p-5">
@@ -29,14 +95,14 @@ const Plan = () => {
 
             <div className="space-y-4 text-[15px] leading-7 text-[#4f4f4f]">
               <p>
-                Please contact us at {" "}
+                Please contact us at{' '}
                 <a
                   href="mailto:sales@getrightroute.app"
                   className="text-[#1d2464] underline underline-offset-2 "
                 >
                   sales@getrightroute.app
-                </a>{" "}
-                or fill out the Fleet Pricing Request Form on our website: {" "}
+                </a>{' '}
+                or fill out the Fleet Pricing Request Form on our website:{' '}
                 <a
                   href="https://getrightroute.app/pricing/"
                   target="_blank"
@@ -51,7 +117,7 @@ const Plan = () => {
               <p>
                 <span className="font-extrabold uppercase text-[#2b2b2b]">
                   IMPORTANT NOTE:
-                </span>{" "}
+                </span>{' '}
                 If you are planning to downgrade to a plan with fewer than 100
                 drivers, please follow the steps for subscribing to a monthly Team
                 plan.
@@ -82,7 +148,7 @@ const Plan = () => {
             <p>
               <span className="font-extrabold uppercase text-[#2b2b2b]">
                 IMPORTANT NOTE:
-              </span>{" "}
+              </span>{' '}
               If you choose a plan that has a lower number of users than you
               currently have enrolled, you will need to remove drivers from your
               User list in your Team Manager.
@@ -105,7 +171,7 @@ const Plan = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Plan;
+export default Plan
