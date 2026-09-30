@@ -24,7 +24,7 @@ const normalizeRoute = (route = {}) => ({
   routeNumber: route.route_number || route.id,
   date: formatRouteDate(route),
   name: route.name || `Route #${route.id}`,
-  driverName: route.driver_name || 'My route history',
+  driverName: route.driver_name || 'Team driver route history',
   driverEmail: route.driver_email || '',
   status: route.status || (route.is_completed ? 'Completed' : 'In progress'),
   totalDistanceKm: route.total_distance_km,
@@ -57,7 +57,7 @@ const downloadTextFile = (content, filename, type = 'text/csv;charset=utf-8;') =
 
 const RouteHistory = () => {
   const navigate = useNavigate()
-  const { accessToken, can } = useAuth()
+  const { accessToken } = useAuth()
 
   const [routes, setRoutes] = useState([])
   const [searchInput, setSearchInput] = useState('')
@@ -72,8 +72,7 @@ const RouteHistory = () => {
   const [waypointsError, setWaypointsError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
-  const canViewTeamRoutes = can('manage.route_history.team')
-  const routeScopeLabel = canViewTeamRoutes ? 'Team route history' : 'My route history'
+  const routeScopeLabel = 'Team driver route history'
 
   const fetchRoutes = useCallback(async (signal) => {
     if (!accessToken) return
