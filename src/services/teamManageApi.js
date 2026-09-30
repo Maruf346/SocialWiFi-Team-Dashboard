@@ -23,6 +23,29 @@ export const teamManageApi = {
     })
   },
 
+  sendEmailPasswordCode(token, action) {
+    return apiRequest(`${MANAGE_BASE}/email-password/send-code/`, {
+      method: 'POST',
+      token,
+      body: { action },
+    })
+  },
+
+  changeEmail(token, payload) {
+    return apiRequest(`${MANAGE_BASE}/email-password/change-email/`, {
+      method: 'POST',
+      token,
+      body: payload,
+    })
+  },
+
+  changePassword(token, payload) {
+    return apiRequest(`${MANAGE_BASE}/email-password/change-password/`, {
+      method: 'POST',
+      token,
+      body: payload,
+    })
+  },
   listTeamUsers(token, params = {}, options = {}) {
     return apiRequest(`${MANAGE_BASE}/team-users/${buildQuery(params)}`, {
       token,
