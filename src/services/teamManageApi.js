@@ -165,4 +165,31 @@ export const teamManageApi = {
       signal: options.signal,
     })
   },
+  listRouteHistory(token, params = {}, options = {}) {
+    return apiRequest(`${MANAGE_BASE}/route-history/${buildQuery(params)}`, {
+      token,
+      signal: options.signal,
+    })
+  },
+
+  getRouteWaypoints(token, routeId, options = {}) {
+    return apiRequest(`${MANAGE_BASE}/route-history/${routeId}/waypoints/`, {
+      token,
+      signal: options.signal,
+    })
+  },
+
+  bulkDeleteRoutes(token, routeIds) {
+    return apiRequest(`${MANAGE_BASE}/route-history/bulk-delete/`, {
+      method: 'POST',
+      token,
+      body: { route_ids: routeIds },
+    })
+  },
+
+  downloadRouteHistory(token) {
+    return apiRequest(`${MANAGE_BASE}/route-history/download/`, {
+      token,
+    })
+  },
 }
