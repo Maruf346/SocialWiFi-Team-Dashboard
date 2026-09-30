@@ -35,4 +35,36 @@ export const teamSupportApi = {
       token,
     })
   },
+
+  getTicketPrefill(token, options = {}) {
+    return apiRequest(`${SUPPORT_BASE}/prefill/`, {
+      token,
+      signal: options.signal,
+    })
+  },
+
+  getTopics(token, options = {}) {
+    return apiRequest(`${SUPPORT_BASE}/topics/`, {
+      token,
+      signal: options.signal,
+    })
+  },
+
+  submitTicket(token, payload) {
+    const formData = new FormData()
+
+    Object.entries(payload).forEach(([key, value]) => {
+      if (key === 'uploaded_files') {
+        value.forEach((file) => formData.append('uploaded_files', file))
+      } else if (value !== undefined && value !== null) {
+        formData.append(key, value)
+      }
+    })
+
+    return apiRequest(`${SUPPORT_BASE}/submit-ticket/`, {
+      method: 'POST',
+      token,
+      body: formData,
+    })
+  },
 }
