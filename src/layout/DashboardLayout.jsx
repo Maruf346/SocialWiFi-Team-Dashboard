@@ -37,7 +37,7 @@ const DashboardLayout = () => {
       ? ['Home', 'Manage', 'Team driver route history', 'Edit Route']
       : breadcrumbMap[location.pathname] || ['Home']
 
-  if (isSessionLoading) {
+  if (!isAuthenticated && isSessionLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-gray-600">
         Loading dashboard...
