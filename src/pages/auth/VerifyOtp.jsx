@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 import { CheckCircle2, X } from 'lucide-react'
 import { Icons } from '../../assets/Images'
@@ -6,14 +6,26 @@ import { useAuth } from '../../context/useAuth'
 
 const VerifyOtp = () => {
   const navigate = useNavigate()
-  const { pendingLogin, resendOtp, verifyOtp } = useAuth()
+  const { pendingLogin, resendOtp, verifyOtp, isAuthenticated } = useAuth()
   const [otpCode, setOtpCode] = useState('')
   const [showResentToast, setShowResentToast] = useState(false)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResending, setIsResending] = useState(false)
 
-  if (!pendingLogin?.email) {
+  // Navigate to dashboard AFTER React has committed the session state.
+  // Using useEffect guarantees isAuthenticated is already true when
+  // DashboardLayout renders, avoiding the race with batched state updates.
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [isAuthenticated, navigate])
+
+  // Only redirect to login when there is truly no pending flow AND no session.
+  // Checking !isAuthenticated avoids a stale Navigate-to-/ firing in the same
+  // render cycle where pendingLogin is cleared alongside the new session.
+  if (!pendingLogin?.email && !isAuthenticated) {
     return <Navigate to="/" replace />
   }
 
@@ -40,8 +52,11 @@ const VerifyOtp = () => {
     setIsSubmitting(true)
 
     try {
+      // verifyOtp sets the session via React state (setSession).
+      // Do NOT call navigate() here — the batched state updates won't be
+      // committed yet, so DashboardLayout would see isAuthenticated=false.
+      // Navigation is handled by the useEffect above once isAuthenticated=true.
       await verifyOtp({ email: pendingLogin.email, otpCode })
-      navigate('/dashboard')
     } catch (err) {
       setError(err.message || 'Invalid or expired verification code.')
     } finally {
