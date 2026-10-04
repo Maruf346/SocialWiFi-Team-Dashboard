@@ -95,7 +95,7 @@ const VerifyOtp = () => {
           <h1 className="mb-3 text-2xl font-normal text-[#ff823d]">Verification page</h1>
           <p className="mb-4 max-w-[420px] text-center text-sm leading-5 text-white">
             Enter the verification code sent to:<br />
-            {pendingLogin.maskedEmail || pendingLogin.email}
+            {pendingLogin?.maskedEmail || pendingLogin?.email}
           </p>
 
           <form className="flex w-full max-w-[280px] flex-col items-center" onSubmit={handleSubmit}>
