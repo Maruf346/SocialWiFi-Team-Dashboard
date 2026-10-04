@@ -86,6 +86,7 @@ export const AuthProvider = ({ children }) => {
 
     const normalized = normalizeSession(response)
     persistSession(normalized)
+    setIsSessionLoading(false)
     clearPendingLogin()
 
     return normalized
