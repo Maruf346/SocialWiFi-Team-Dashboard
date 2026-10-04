@@ -162,8 +162,9 @@ export const AuthProvider = ({ children }) => {
     // Skip refreshing if session already has complete data (user + team + permissions)
     // from a fresh OTP login. Calling getSession() on a brand-new token can fail
     // with 401 and wipe the session via clearSession().
+    // NOTE: isSessionLoading is already initialized to false when sessionIsComplete
+    // is true, so no setState call is needed here.
     if (sessionIsComplete(readJson(SESSION_STORAGE_KEY))) {
-      setIsSessionLoading(false)
       return
     }
 
