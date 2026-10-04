@@ -38,10 +38,16 @@ const normalizeSession = (data) => {
   }
 }
 
+const sessionIsComplete = (s) =>
+  Boolean(s?.accessToken && s?.user?.id && s?.team?.id)
+
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(() => readJson(SESSION_STORAGE_KEY))
   const [pendingLogin, setPendingLogin] = useState(() => readJson(PENDING_LOGIN_KEY))
-  const [isSessionLoading, setIsSessionLoading] = useState(Boolean(readJson(SESSION_STORAGE_KEY)?.accessToken))
+  const initialSession = readJson(SESSION_STORAGE_KEY)
+  const [isSessionLoading, setIsSessionLoading] = useState(
+    Boolean(initialSession?.accessToken) && !sessionIsComplete(initialSession)
+  )
 
   const persistSession = useCallback((nextSession) => {
     if (!nextSession) {
@@ -153,6 +159,14 @@ export const AuthProvider = ({ children }) => {
   }, [clearSession, persistSession])
 
   useEffect(() => {
+    // Skip refreshing if session already has complete data (user + team + permissions)
+    // from a fresh OTP login. Calling getSession() on a brand-new token can fail
+    // with 401 and wipe the session via clearSession().
+    if (sessionIsComplete(readJson(SESSION_STORAGE_KEY))) {
+      setIsSessionLoading(false)
+      return
+    }
+
     const timeoutId = window.setTimeout(() => {
       refreshSession().catch(() => {
         setIsSessionLoading(false)
