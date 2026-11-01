@@ -76,10 +76,20 @@ const RouteHistory = () => {
   const driverUserId = searchParams.get('user_id') || ''
   const driverName = searchParams.get('driver_name') || ''
   const driverEmail = searchParams.get('user_email') || ''
+  const hasDriverScope = Boolean(driverUserId)
   const routeScopeLabel = driverName || driverEmail || 'Team driver route history'
 
   const fetchRoutes = useCallback(async (signal) => {
     if (!accessToken) return
+
+    if (!driverUserId) {
+      setRoutes([])
+      setSelectedIds([])
+      setSelectedRouteId(null)
+      setWaypoints([])
+      setIsLoading(false)
+      return
+    }
 
     await Promise.resolve()
 
@@ -250,6 +260,24 @@ const RouteHistory = () => {
         To view a user&apos;s route history, click on the icon next to the user&apos;s name on the{' '}
         <span className="font-semibold text-[#2c2c2c]">Team Users</span> page.
       </p>
+
+      {!hasDriverScope && (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#f2c4ad] bg-[#fff7f2] px-4 py-3">
+          <div>
+            <h2 className="text-[15px] font-semibold text-[#333]">Select a driver first</h2>
+            <p className="mt-1 text-[13px] leading-5 text-[#666]">
+              Choose a driver from Team Users to view their route history or create a new route.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/dashboard/manage/team-users')}
+            className="rounded bg-[#ff823d] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#e56f2d] cursor-pointer"
+          >
+            Select Driver
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">
@@ -456,7 +484,10 @@ const RouteHistory = () => {
           </button>
           <button
             type="button"
+            disabled={!hasDriverScope}
+            title={hasDriverScope ? 'Create a new route for this driver' : 'Select a driver from Team Users first'}
             onClick={() => {
+              if (!hasDriverScope) return
               const params = new URLSearchParams()
               if (driverUserId) params.set('user_id', driverUserId)
               if (driverName) params.set('driver_name', driverName)
@@ -464,7 +495,11 @@ const RouteHistory = () => {
               const query = params.toString()
               navigate(`/dashboard/manage/team-route-history/create${query ? `?${query}` : ''}`)
             }}
-            className="rounded bg-[#ff823d] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#e56f2d] cursor-pointer"
+            className={`rounded bg-[#ff823d] px-3 py-1.5 text-sm font-medium text-white transition ${
+              hasDriverScope
+                ? 'hover:bg-[#e56f2d] cursor-pointer'
+                : 'opacity-40 cursor-not-allowed'
+            }`}
           >
             Create New Route
           </button>

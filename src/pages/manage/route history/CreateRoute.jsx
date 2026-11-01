@@ -378,6 +378,27 @@ const CreateRoute = () => {
   // ── All map points for step-2 rendering ──────────────────────────────────
   const allWaypoints = permits.flatMap((p) => p.waypoints)
 
+  if (!driverUserId) {
+    return (
+      <main className="min-h-full px-2 py-2 text-[#888] md:px-6 md:py-4">
+        <h1 className="mb-5 text-xl font-normal text-[#999] md:text-2xl">Create route</h1>
+        <div className="max-w-2xl rounded-lg border border-[#f2c4ad] bg-[#fff7f2] px-5 py-4">
+          <h2 className="text-base font-semibold text-[#333]">Select a driver before creating a route</h2>
+          <p className="mt-2 text-[13px] leading-5 text-[#666]">
+            Open Team Users and choose the route-history icon beside a driver. Their driver ID will then be attached to the new route.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/dashboard/manage/team-users')}
+            className="mt-4 rounded bg-[#ff823d] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#e56f2d] cursor-pointer"
+          >
+            Select Driver
+          </button>
+        </div>
+      </main>
+    )
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <main className="min-h-full px-2 py-2 text-[#888] md:px-6 md:py-4">
