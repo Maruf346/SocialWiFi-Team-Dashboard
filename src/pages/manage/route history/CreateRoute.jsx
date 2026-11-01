@@ -105,6 +105,8 @@ const CreateRoute = () => {
   const [geocoding, setGeocoding]       = useState(false)
   const [isSaving, setIsSaving]         = useState(false)
   const [saveMessage, setSaveMessage]   = useState('')
+  const [showWaypointExamples, setShowWaypointExamples] = useState(false)
+  const [highlightWaypointInput, setHighlightWaypointInput] = useState(false)
 
   // Step 2 state
   const [permits, setPermits]           = useState([
@@ -112,11 +114,43 @@ const CreateRoute = () => {
   ])
   const [routePath, setRoutePath]       = useState([])     // [[lat,lng],…] for polyline
   const fileInputRef                    = useRef(null)
-  const cameraInputRef                  = useRef(null)
+  const waypointHelpRef                 = useRef(null)
+  const waypointHighlightTimerRef       = useRef(null)
   const mapRef                          = useRef(null)
 
   // Default map center (Des Moines, IA as placeholder)
   const defaultCenter = [41.589, -93.62]
+
+  useEffect(() => {
+    if (!showWaypointExamples) return undefined
+
+    const closeWaypointExamples = (event) => {
+      if (event.type === 'keydown' && event.key !== 'Escape') return
+      if (event.type === 'pointerdown' && waypointHelpRef.current?.contains(event.target)) return
+      setShowWaypointExamples(false)
+    }
+
+    document.addEventListener('pointerdown', closeWaypointExamples)
+    document.addEventListener('keydown', closeWaypointExamples)
+
+    return () => {
+      document.removeEventListener('pointerdown', closeWaypointExamples)
+      document.removeEventListener('keydown', closeWaypointExamples)
+    }
+  }, [showWaypointExamples])
+
+  useEffect(() => () => {
+    window.clearTimeout(waypointHighlightTimerRef.current)
+  }, [])
+
+  const handleWaypointHelp = () => {
+    setShowWaypointExamples((visible) => !visible)
+    setHighlightWaypointInput(true)
+    window.clearTimeout(waypointHighlightTimerRef.current)
+    waypointHighlightTimerRef.current = window.setTimeout(() => {
+      setHighlightWaypointInput(false)
+    }, 2400)
+  }
 
   // ── Fetch road path whenever step-2 waypoints change ─────────────────────
   useEffect(() => {
@@ -361,7 +395,7 @@ const CreateRoute = () => {
               <label className="mb-1.5 flex items-center text-[14px] font-bold text-[#111]">
                 <span>Step 1 - Input Permit</span>
                 <span
-                  title="Upload permit document, take a photo, or type comma-separated waypoints"
+                  title="Upload a permit document or type comma-separated waypoints"
                   className="ml-1.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-[2px] bg-[#606060] text-[10px] font-bold text-white select-none"
                 >
                   ?
@@ -369,7 +403,7 @@ const CreateRoute = () => {
               </label>
 
               {/* Orange icon buttons */}
-              <div className="mb-2 flex items-center gap-2">
+              <div ref={waypointHelpRef} className="relative mb-2 flex items-center gap-2">
                 {/* Document / Permit file upload */}
                 <button
                   type="button"
@@ -395,12 +429,17 @@ const CreateRoute = () => {
                   </svg>
                 </button>
 
-                {/* Camera icon button */}
+                {/* Waypoint examples / manual entry helper */}
                 <button
                   type="button"
-                  onClick={() => cameraInputRef.current?.click()}
-                  title="Take photo of permit"
-                  className="flex h-8 w-8 items-center justify-center rounded-[4px] bg-[#eb7035] text-white shadow-sm transition hover:bg-[#d85f24] cursor-pointer"
+                  onClick={handleWaypointHelp}
+                  title="Show waypoint entry examples"
+                  aria-label="Show waypoint entry examples"
+                  aria-expanded={showWaypointExamples}
+                  aria-controls="waypoint-entry-examples"
+                  className={`flex h-8 w-8 items-center justify-center rounded-[4px] text-white shadow-sm transition cursor-pointer ${
+                    showWaypointExamples ? 'bg-[#c94f18]' : 'bg-[#eb7035] hover:bg-[#d85f24]'
+                  }`}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -413,10 +452,38 @@ const CreateRoute = () => {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                    <circle cx="12" cy="13" r="4" />
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
                   </svg>
                 </button>
+
+                {showWaypointExamples && (
+                  <div
+                    id="waypoint-entry-examples"
+                    role="dialog"
+                    aria-label="Waypoint entry examples"
+                    className="absolute bottom-[calc(100%+10px)] left-8 z-[1000] w-[min(360px,calc(100vw-3rem))] rounded-[12px] border border-[#e4e4e4] bg-white px-4 py-3.5 text-[14px] leading-6 text-[#aaa] shadow-[0_12px_35px_rgba(0,0,0,0.24)]"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setShowWaypointExamples(false)}
+                      aria-label="Close waypoint examples"
+                      className="absolute right-2 top-1.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-lg text-[#999] hover:bg-[#f3f3f3] hover:text-[#555]"
+                    >
+                      x
+                    </button>
+                    <p className="pr-7">Example:</p>
+                    <ul aria-label="Example waypoints">
+                      <li>IA-9 EB</li>
+                      <li>US-18 SB</li>
+                      <li>IA-4 SB</li>
+                      <li>IA-3 EB</li>
+                      <li>US-69 NB</li>
+                      <li>B62 at Quail Ave</li>
+                    </ul>
+                    <span className="absolute -bottom-2 left-3 h-4 w-4 rotate-45 border-b border-r border-[#e4e4e4] bg-white" />
+                  </div>
+                )}
 
                 {permitFile && (
                   <span className="max-w-[140px] truncate rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-[#444]">
@@ -433,22 +500,18 @@ const CreateRoute = () => {
                 className="hidden"
                 onChange={(e) => setPermitFile(e.target.files[0] ?? null)}
               />
-              <input
-                ref={cameraInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => setPermitFile(e.target.files[0] ?? null)}
-              />
-
               {/* Waypoints input */}
               <input
                 type="text"
                 value={permitText}
                 onChange={(e) => setPermitText(e.target.value)}
                 placeholder="Type in a waypoints, comma separated."
-                className="h-8 w-full rounded-[4px] border border-[#ccc] bg-white px-2.5 text-[13px] text-[#333] placeholder:text-[#999] outline-none focus:border-[#eb7035]"
+                aria-describedby={showWaypointExamples ? 'waypoint-entry-examples' : undefined}
+                className={`h-8 w-full rounded-[4px] border bg-white px-2.5 text-[13px] text-[#333] placeholder:text-[#999] outline-none transition-[border-color,box-shadow,background-color] duration-300 focus:border-[#eb7035] ${
+                  highlightWaypointInput
+                    ? 'border-[#eb7035] bg-[#fff8f3] shadow-[0_0_0_4px_rgba(235,112,53,0.28)]'
+                    : 'border-[#ccc]'
+                }`}
               />
             </div>
 
