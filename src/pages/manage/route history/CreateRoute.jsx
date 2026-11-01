@@ -98,6 +98,8 @@ const CreateRoute = () => {
   const [permitText, setPermitText]     = useState('')
   const [permitFile, setPermitFile]     = useState(null)
   const [startInput, setStartInput]     = useState('')
+  const [endInput, setEndInput]         = useState('')
+  const [locationTarget, setLocationTarget] = useState('start')
   const [startPoint, setStartPoint]     = useState(null)   // { lat, lng }
   const [endPoint, setEndPoint]         = useState(null)   // { lat, lng }
   const [settingPin, setSettingPin]     = useState(null)   // 'start' | 'end' | null
@@ -120,6 +122,8 @@ const CreateRoute = () => {
 
   // Default map center (Des Moines, IA as placeholder)
   const defaultCenter = [41.589, -93.62]
+  const activeLocationInput = locationTarget === 'start' ? startInput : endInput
+  const canContinue = Boolean((permitFile || permitText.trim()) && startPoint && endPoint)
 
   useEffect(() => {
     if (!showWaypointExamples) return undefined
@@ -183,30 +187,68 @@ const CreateRoute = () => {
     if (settingPin === 'start') {
       setStartPoint({ lat, lng })
       setStartInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`)
+      setLocationTarget('end')
     } else {
       setEndPoint({ lat, lng })
+      setEndInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`)
     }
+    setStep1Error('')
     setSettingPin(null)
   }, [settingPin])
 
   // ── Geocode start/end inputs and set pins ─────────────────────────────────
-  const handleSetStartPoint = async () => {
-    if (!startInput.trim()) return
+  const handleSetLocationPoint = async () => {
+    const target = locationTarget
+    const query = activeLocationInput.trim()
+    if (!query) {
+      setStep1Error(`Please enter a ${target} location.`)
+      return
+    }
+
     setGeocoding(true)
-    const result = await geocodePlace(startInput)
-    setGeocoding(false)
-    if (result) {
-      setStartPoint({ lat: result.lat, lng: result.lng })
-    } else {
-      setStep1Error('Could not geocode start location. Try clicking on the map instead.')
+    setStep1Error('')
+    try {
+      const result = await geocodePlace(query)
+      if (!result) {
+        setStep1Error(`Could not geocode ${target} location. Try clicking on the map instead.`)
+        return
+      }
+
+      const point = { lat: result.lat, lng: result.lng }
+      if (target === 'start') {
+        setStartPoint(point)
+        setLocationTarget('end')
+      } else {
+        setEndPoint(point)
+      }
+      setSettingPin(null)
+    } catch {
+      setStep1Error(`Could not geocode ${target} location. Try clicking on the map instead.`)
+    } finally {
+      setGeocoding(false)
     }
   }
+
+  const handlePointDrag = useCallback((target, event) => {
+    const { lat, lng } = event.target.getLatLng()
+    const point = { lat, lng }
+    const coordinates = `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+
+    if (target === 'start') {
+      setStartPoint(point)
+      setStartInput(coordinates)
+    } else {
+      setEndPoint(point)
+      setEndInput(coordinates)
+    }
+  }, [])
 
   // ── Step 1 → Step 2 ───────────────────────────────────────────────────────
   const handleContinue = () => {
     if (!routeName.trim())           { setStep1Error('Please enter a route name.'); return }
     if (!permitText && !permitFile)  { setStep1Error('Please enter permit waypoints or upload a permit file.'); return }
-    if (!startPoint)                 { setStep1Error('Please set a start point on the map.'); return }
+    if (!startPoint)                 { setStep1Error('Please set a start point.'); return }
+    if (!endPoint)                   { setStep1Error('Please set an end point.'); return }
     setStep1Error('')
     // Mock: parse permit text into first-permit waypoints if entered
     if (permitText.trim()) {
@@ -219,11 +261,6 @@ const CreateRoute = () => {
         lng: baseCenter.lng + i * 0.015,
       }))
       setPermits([{ id: 'p1', label: 'Permit 1', waypoints: mocked.length ? mocked : MOCK_WAYPOINTS }])
-    }
-    // Auto-set end point if none chosen
-    if (!endPoint) {
-      const last = permits[0].waypoints.at(-1)
-      if (last) setEndPoint({ lat: last.lat, lng: last.lng })
     }
     setStep(2)
   }
@@ -314,7 +351,7 @@ const CreateRoute = () => {
         start_location: startInput.trim() || 'Start',
         start_latitude: startPoint.lat,
         start_longitude: startPoint.lng,
-        end_location: allRouteWaypoints.at(-1)?.name || 'End',
+        end_location: endInput.trim() || allRouteWaypoints.at(-1)?.name || 'End',
         end_latitude: endPoint.lat,
         end_longitude: endPoint.lng,
         permit_text: permitText.trim() || null,
@@ -530,30 +567,36 @@ const CreateRoute = () => {
               {/* Location input */}
               <input
                 type="text"
-                value={startInput}
-                onChange={(e) => setStartInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSetStartPoint()}
-                placeholder="Enter a location of move pin on map."
+                value={activeLocationInput}
+                onChange={(e) => {
+                  if (locationTarget === 'start') setStartInput(e.target.value)
+                  else setEndInput(e.target.value)
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleSetLocationPoint()}
+                placeholder={`Enter ${locationTarget} location or move pin on map.`}
+                aria-label={`${locationTarget === 'start' ? 'Start' : 'End'} location`}
                 className="h-8 w-full rounded-[4px] border border-[#ccc] bg-white px-2.5 text-[13px] text-[#333] placeholder:text-[#999] outline-none focus:border-[#eb7035]"
               />
 
-              {/* Set Start Point button */}
+              {/* Set active Start / End Point button */}
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleSetStartPoint}
+                  onClick={handleSetLocationPoint}
                   disabled={geocoding}
                   className="inline-flex h-8 items-center justify-center rounded-[4px] bg-[#eb7035] px-3.5 text-[13px] font-bold text-white shadow-sm transition hover:bg-[#d85f24] cursor-pointer disabled:opacity-60"
                 >
-                  {geocoding ? 'Setting…' : 'Set Start Point'}
+                  {geocoding ? 'Setting...' : `Set ${locationTarget === 'start' ? 'Start' : 'End'} Point`}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setSettingPin(settingPin === 'start' ? null : 'start')}
-                  className={`text-[11px] underline cursor-pointer ${settingPin === 'start' ? 'text-[#eb7035] font-semibold' : 'text-[#666]'}`}
+                  onClick={() => setSettingPin(settingPin === locationTarget ? null : locationTarget)}
+                  className={`text-[11px] underline cursor-pointer ${settingPin === locationTarget ? 'text-[#eb7035] font-semibold' : 'text-[#666]'}`}
                 >
-                  {settingPin === 'start' ? '📍 Click map for Start pin…' : 'Or click map'}
+                  {settingPin === locationTarget
+                    ? `Click map for ${locationTarget === 'start' ? 'Start' : 'End'} pin...`
+                    : 'Or click map'}
                 </button>
               </div>
 
@@ -571,7 +614,10 @@ const CreateRoute = () => {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setSettingPin(settingPin === 'end' ? null : 'end')}
+                    onClick={() => {
+                      setLocationTarget('end')
+                      setSettingPin(settingPin === 'end' ? null : 'end')
+                    }}
                     className={`text-left underline cursor-pointer ${settingPin === 'end' ? 'text-[#eb7035] font-semibold' : 'text-[#777]'}`}
                   >
                     {settingPin === 'end' ? '📍 Click map for End pin…' : '+ Click map to place End pin'}
@@ -616,12 +662,22 @@ const CreateRoute = () => {
               />
               <MapClickHandler onMapClick={handleMapClick} />
               {startPoint && (
-                <Marker position={[startPoint.lat, startPoint.lng]} icon={startIcon}>
+                <Marker
+                  position={[startPoint.lat, startPoint.lng]}
+                  icon={startIcon}
+                  draggable
+                  eventHandlers={{ dragend: (event) => handlePointDrag('start', event) }}
+                >
                   <Tooltip permanent direction="top" offset={[0, -16]}>Start</Tooltip>
                 </Marker>
               )}
               {endPoint && (
-                <Marker position={[endPoint.lat, endPoint.lng]} icon={endIcon}>
+                <Marker
+                  position={[endPoint.lat, endPoint.lng]}
+                  icon={endIcon}
+                  draggable
+                  eventHandlers={{ dragend: (event) => handlePointDrag('end', event) }}
+                >
                   <Tooltip permanent direction="top" offset={[0, -16]}>End</Tooltip>
                 </Marker>
               )}
@@ -633,7 +689,11 @@ const CreateRoute = () => {
             <button
               type="button"
               onClick={handleContinue}
-              className="rounded-full bg-[#888] px-16 py-2.5 text-sm font-semibold tracking-wide text-white transition hover:bg-[#666] cursor-pointer"
+              className={`rounded-full px-16 py-2.5 text-sm font-semibold tracking-wide text-white transition cursor-pointer ${
+                canContinue
+                  ? 'bg-[#eb7035] hover:bg-[#d85f24]'
+                  : 'bg-[#888] hover:bg-[#666]'
+              }`}
             >
               CONTINUE
             </button>
@@ -681,7 +741,12 @@ const CreateRoute = () => {
 
                   {/* Start marker */}
                   {startPoint && (
-                    <Marker position={[startPoint.lat, startPoint.lng]} icon={startIcon}>
+                    <Marker
+                      position={[startPoint.lat, startPoint.lng]}
+                      icon={startIcon}
+                      draggable
+                      eventHandlers={{ dragend: (event) => handlePointDrag('start', event) }}
+                    >
                       <Tooltip permanent direction="top" offset={[0, -16]}>Start</Tooltip>
                     </Marker>
                   )}
@@ -699,7 +764,12 @@ const CreateRoute = () => {
 
                   {/* End marker */}
                   {endPoint && (
-                    <Marker position={[endPoint.lat, endPoint.lng]} icon={endIcon}>
+                    <Marker
+                      position={[endPoint.lat, endPoint.lng]}
+                      icon={endIcon}
+                      draggable
+                      eventHandlers={{ dragend: (event) => handlePointDrag('end', event) }}
+                    >
                       <Tooltip permanent direction="top" offset={[0, -16]}>End</Tooltip>
                     </Marker>
                   )}
