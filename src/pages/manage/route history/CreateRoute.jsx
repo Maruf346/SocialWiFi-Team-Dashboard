@@ -462,7 +462,7 @@ const CreateRoute = () => {
                     id="waypoint-entry-examples"
                     role="dialog"
                     aria-label="Waypoint entry examples"
-                    className="absolute bottom-[calc(100%+10px)] left-8 z-[1000] w-[min(360px,calc(100vw-3rem))] rounded-[12px] border border-[#e4e4e4] bg-white px-4 py-3.5 text-[14px] leading-6 text-[#aaa] shadow-[0_12px_35px_rgba(0,0,0,0.24)]"
+                    className="absolute left-0 top-[calc(100%+50px)] z-[1000] w-[min(360px,calc(100vw-3rem))] rounded-[12px] border border-[#e4e4e4] bg-white px-4 py-3.5 text-[14px] leading-6 text-[#aaa] shadow-[0_12px_35px_rgba(0,0,0,0.24)]"
                   >
                     <button
                       type="button"
@@ -481,7 +481,7 @@ const CreateRoute = () => {
                       <li>US-69 NB</li>
                       <li>B62 at Quail Ave</li>
                     </ul>
-                    <span className="absolute -bottom-2 left-3 h-4 w-4 rotate-45 border-b border-r border-[#e4e4e4] bg-white" />
+                    <span className="absolute -top-2 left-9 h-4 w-4 rotate-45 border-l border-t border-[#e4e4e4] bg-white" />
                   </div>
                 )}
 
