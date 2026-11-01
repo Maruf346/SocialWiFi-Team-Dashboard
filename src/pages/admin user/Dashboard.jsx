@@ -11,7 +11,7 @@ const Dashboard = () => {
         />
 
         <h1 className="text-3xl font-bold leading-tight text-[#666666] md:text-4xl">
-          Administration
+          Team
           <br />
           Dashboard
         </h1>

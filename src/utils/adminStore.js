@@ -23,7 +23,7 @@ export const permissionGroups = [
   },
   {
     title: 'Support',
-    items: ['Contact support', 'Help center', 'Submit a support ticket', 'Resources'],
+    items: ['Contact support', 'Submit a support ticket', 'Resources'],
   },
   {
     title: 'Security, Logging & Compliance',

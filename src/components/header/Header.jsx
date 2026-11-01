@@ -43,14 +43,14 @@ const Header = ({ onMenuClick }) => {
         </a>
 
         <span>/</span>
-        <button
+        {/* <button
           type="button"
           onClick={() => navigate('/dashboard/manage/email')}
           className="underline underline-offset-2 cursor-pointer uppercase text-xs lg:text-sm text-white"
         >
           Change password
         </button>
-        <span>/</span>
+        <span>/</span> */}
         <button
           type="button"
           onClick={handleLogout}
