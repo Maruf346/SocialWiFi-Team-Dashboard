@@ -3,6 +3,22 @@ import { CheckCircle2, Eye, EyeOff, X } from 'lucide-react'
 import { useAuth } from '../../../context/useAuth'
 import { teamManageApi } from '../../../services/teamManageApi'
 
+const PASSWORD_REQUIREMENTS_MESSAGE =
+  'New password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.'
+
+const getPasswordFormatError = (password) => {
+  if (
+    password.length < 8 ||
+    !/[A-Z]/.test(password) ||
+    !/[a-z]/.test(password) ||
+    !/[0-9]/.test(password)
+  ) {
+    return PASSWORD_REQUIREMENTS_MESSAGE
+  }
+
+  return ''
+}
+
 const Email = () => {
   const { accessToken, user, refreshSession } = useAuth()
   const [verificationCode, setVerificationCode] = useState(Array(6).fill(''))
@@ -35,6 +51,13 @@ const Email = () => {
   const currentEmail = user?.email || 'Not available'
 
   const otpCode = useMemo(() => verificationCode.join(''), [verificationCode])
+  const passwordFormatError = passwordForm.newPassword
+    ? getPasswordFormatError(passwordForm.newPassword)
+    : ''
+  const passwordConfirmationError =
+    passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword
+      ? 'New password and confirmation password must match.'
+      : ''
 
   useEffect(() => {
     if (!isTimerRunning || timeLeft <= 0) return
@@ -73,8 +96,31 @@ const Email = () => {
     return hasPasswordChange && !hasEmailChange ? 'CHANGE_PASSWORD' : 'CHANGE_EMAIL'
   }
 
+  const validatePasswordFields = () => {
+    if (!passwordForm.currentPassword) return 'Please enter your current password.'
+    if (!passwordForm.newPassword) return 'Please enter a new password.'
+
+    const formatError = getPasswordFormatError(passwordForm.newPassword)
+    if (formatError) return formatError
+    if (!passwordForm.confirmPassword) return 'Please confirm your new password.'
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      return 'New password and confirmation password must match.'
+    }
+
+    return ''
+  }
+
   const handleSendVerificationCode = async (action = inferAction()) => {
     setError('')
+
+    if (action === 'CHANGE_PASSWORD') {
+      const validationError = validatePasswordFields()
+      if (validationError) {
+        setError(validationError)
+        return
+      }
+    }
+
     setIsSendingCode(true)
 
     try {
@@ -117,18 +163,17 @@ const Email = () => {
   }
 
   const validateChange = () => {
-    if (otpCode.length !== 6) return 'Please enter the 6-digit verification code.'
-
     if (pendingAction === 'CHANGE_EMAIL') {
+      if (otpCode.length !== 6) return 'Please enter the 6-digit verification code.'
       if (!emailForm.newEmail.trim()) return 'Please enter a new email address.'
       if (emailForm.newEmail.trim() !== emailForm.confirmEmail.trim()) return 'New email and confirmation email must match.'
       if (!emailForm.currentPassword) return 'Please enter your current password for email change.'
       return ''
     }
 
-    if (!passwordForm.currentPassword) return 'Please enter your current password.'
-    if (passwordForm.newPassword.length < 8) return 'New password must be at least 8 characters.'
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) return 'New password and confirmation password must match.'
+    const passwordFieldsError = validatePasswordFields()
+    if (passwordFieldsError) return passwordFieldsError
+    if (otpCode.length !== 6) return 'Please enter the 6-digit verification code.'
     return ''
   }
 
@@ -294,9 +339,23 @@ const Email = () => {
                   <input
                     type={showNewPassword ? 'text' : 'password'}
                     value={passwordForm.newPassword}
-                    onChange={(event) => setPasswordForm((prev) => ({ ...prev, newPassword: event.target.value }))}
+                    onChange={(event) => {
+                      setPasswordForm((prev) => ({ ...prev, newPassword: event.target.value }))
+                      setError('')
+                    }}
                     placeholder="Enter new password"
-                    className="h-8 w-full rounded border border-[#d0d0d0] bg-white px-2.5 pr-8 text-[12px] text-[#333] placeholder:text-[#a0a0a0] outline-none focus:border-[#1d2464]"
+                    minLength={8}
+                    aria-invalid={Boolean(passwordFormatError)}
+                    aria-describedby={
+                      passwordFormatError
+                        ? 'new-password-requirements new-password-error'
+                        : 'new-password-requirements'
+                    }
+                    className={`h-8 w-full rounded border bg-white px-2.5 pr-8 text-[12px] text-[#333] placeholder:text-[#a0a0a0] outline-none ${
+                      passwordFormatError
+                        ? 'border-red-400 focus:border-red-500'
+                        : 'border-[#d0d0d0] focus:border-[#1d2464]'
+                    }`}
                   />
                   <button
                     type="button"
@@ -310,10 +369,19 @@ const Email = () => {
 
               <div className="grid grid-cols-[135px_1fr] gap-2">
                 <div />
-                <p className="text-[10.5px] leading-[13px] text-[#777]">
+                <p id="new-password-requirements" className="text-[10.5px] leading-[13px] text-[#777]">
                   At least 8 characters, including uppercase, lowercase, and a number.
                 </p>
               </div>
+
+              {passwordFormatError && (
+                <div className="grid grid-cols-[135px_1fr] gap-2">
+                  <div />
+                  <p id="new-password-error" role="alert" className="text-[11px] leading-4 text-red-600">
+                    {passwordFormatError}
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-[135px_1fr] items-center gap-2">
                 <label className="text-[12px] font-semibold text-[#555]">Confirm New password</label>
@@ -321,9 +389,19 @@ const Email = () => {
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={passwordForm.confirmPassword}
-                    onChange={(event) => setPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
+                    onChange={(event) => {
+                      setPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))
+                      setError('')
+                    }}
                     placeholder="Confirm new password"
-                    className="h-8 w-full rounded border border-[#d0d0d0] bg-white px-2.5 pr-8 text-[12px] text-[#333] placeholder:text-[#a0a0a0] outline-none focus:border-[#1d2464]"
+                    minLength={8}
+                    aria-invalid={Boolean(passwordConfirmationError)}
+                    aria-describedby={passwordConfirmationError ? 'confirm-password-error' : undefined}
+                    className={`h-8 w-full rounded border bg-white px-2.5 pr-8 text-[12px] text-[#333] placeholder:text-[#a0a0a0] outline-none ${
+                      passwordConfirmationError
+                        ? 'border-red-400 focus:border-red-500'
+                        : 'border-[#d0d0d0] focus:border-[#1d2464]'
+                    }`}
                   />
                   <button
                     type="button"
@@ -334,6 +412,15 @@ const Email = () => {
                   </button>
                 </div>
               </div>
+
+              {passwordConfirmationError && (
+                <div className="grid grid-cols-[135px_1fr] gap-2">
+                  <div />
+                  <p id="confirm-password-error" role="alert" className="text-[11px] leading-4 text-red-600">
+                    {passwordConfirmationError}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
