@@ -559,14 +559,14 @@ const PrivacyPolicy = () => {
             please contact us at:
           </p>
           <p className="mt-3">
-            Leavitt &amp; Davis LLC
+            LEAVITT &amp; DAVIS LLC
             <br />
-            210 E 600 S, #1205
+            1753 US Highway 40, Suite 2, PMB 15
             <br />
             Vernal, UT 84078
             <br />
             <a
-              className="text-[#c3c3c3] hover:underline"
+              className="text-[#ff823d] underline hover:opacity-85"
               href="mailto:legal@getrightroute.app"
             >
               legal@getrightroute.app

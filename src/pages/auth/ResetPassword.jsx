@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { Eye, EyeOff } from 'lucide-react'
 import { Icons } from '../../assets/Images'
 
 const ResetPassword = () => {
   const navigate = useNavigate()
   const [passwordError, setPasswordError] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const handleSubmit = (event) => {
     event.preventDefault()
@@ -38,22 +41,43 @@ const ResetPassword = () => {
           <h1 className="mb-4 text-2xl font-normal text-[#ff823d]">Reset Password</h1>
 
           <form className="flex w-full max-w-[245px] flex-col" onSubmit={handleSubmit}>
-            <input
-              type="password"
-              name="new-password"
-              placeholder="New Password"
-              aria-label="New Password"
-              required
-              className="mb-3 h-10 bg-white px-3 text-sm text-gray-700 outline-none placeholder:text-gray-400"
-            />
-            <input
-              type="password"
-              name="confirm-password"
-              placeholder="Confirm New Password"
-              aria-label="Confirm New Password"
-              required
-              className="mb-2 h-10 bg-white px-3 text-sm text-gray-700 outline-none placeholder:text-gray-400"
-            />
+            <div className="relative mb-3 w-full">
+              <input
+                type={showNewPassword ? 'text' : 'password'}
+                name="new-password"
+                placeholder="New Password"
+                aria-label="New Password"
+                required
+                className="h-10 w-full bg-white pl-3 pr-9 text-sm text-gray-700 outline-none placeholder:text-gray-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword((prev) => !prev)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer"
+                aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+              >
+                {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+
+            <div className="relative mb-2 w-full">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                name="confirm-password"
+                placeholder="Confirm New Password"
+                aria-label="Confirm New Password"
+                required
+                className="h-10 w-full bg-white pl-3 pr-9 text-sm text-gray-700 outline-none placeholder:text-gray-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer"
+                aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+              >
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
 
             {passwordError && (
               <p className="mb-3 text-center text-xs text-[#ff823d]">{passwordError}</p>

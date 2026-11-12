@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, Eye, EyeOff, X } from 'lucide-react'
 import { useAuth } from '../../../context/useAuth'
 import { teamManageApi } from '../../../services/teamManageApi'
@@ -21,7 +21,7 @@ const getPasswordFormatError = (password) => {
 
 const Email = () => {
   const { accessToken, user, refreshSession } = useAuth()
-  const [verificationCode, setVerificationCode] = useState(Array(6).fill(''))
+  const [verificationCode, setVerificationCode] = useState('')
   const [timeLeft, setTimeLeft] = useState(600)
   const [isTimerRunning, setIsTimerRunning] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
@@ -47,10 +47,10 @@ const Email = () => {
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  const codeInputRefs = useRef([])
+  const codeInputRef = useRef(null)
   const currentEmail = user?.email || 'Not available'
 
-  const otpCode = useMemo(() => verificationCode.join(''), [verificationCode])
+  const otpCode = verificationCode.trim()
   const passwordFormatError = passwordForm.newPassword
     ? getPasswordFormatError(passwordForm.newPassword)
     : ''
@@ -128,9 +128,9 @@ const Email = () => {
       setPendingAction(action)
       setTimeLeft(600)
       setIsTimerRunning(true)
-      setVerificationCode(Array(6).fill(''))
+      setVerificationCode('')
       triggerToast(`Verification code sent for ${action === 'CHANGE_PASSWORD' ? 'password' : 'email'} change`)
-      codeInputRefs.current[0]?.focus()
+      codeInputRef.current?.focus()
     } catch (err) {
       setError(err.message || 'Unable to send verification code.')
     } finally {
@@ -140,26 +140,6 @@ const Email = () => {
 
   const handleResendCode = () => {
     handleSendVerificationCode(pendingAction)
-  }
-
-  const handleCodeChange = (index, value) => {
-    const digit = value.replace(/\D/g, '').slice(0, 1)
-
-    setVerificationCode((currentCode) => {
-      const nextCode = [...currentCode]
-      nextCode[index] = digit
-      return nextCode
-    })
-
-    if (digit && index < codeInputRefs.current.length - 1) {
-      codeInputRefs.current[index + 1]?.focus()
-    }
-  }
-
-  const handleCodeKeyDown = (index, event) => {
-    if (event.key === 'Backspace' && !verificationCode[index] && index > 0) {
-      codeInputRefs.current[index - 1]?.focus()
-    }
   }
 
   const validateChange = () => {
@@ -208,7 +188,7 @@ const Email = () => {
         triggerToast('Password changed successfully')
       }
 
-      setVerificationCode(Array(6).fill(''))
+      setVerificationCode('')
       setIsTimerRunning(false)
       setTimeLeft(600)
     } catch (err) {
@@ -458,23 +438,21 @@ const Email = () => {
               </span>
             </p>
 
-            <div className="mt-3.5 flex gap-2">
-              {verificationCode.map((digit, index) => (
-                <input
-                  key={index}
-                  ref={(input) => {
-                    codeInputRefs.current[index] = input
-                  }}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={digit}
-                  onChange={(event) => handleCodeChange(index, event.target.value)}
-                  onKeyDown={(event) => handleCodeKeyDown(index, event)}
-                  aria-label={`Verification code digit ${index + 1}`}
-                  className="h-9 w-9 md:h-10 md:w-10 rounded border border-[#d0d0d0] bg-white text-center text-sm font-semibold text-[#333] outline-none focus:border-[#1d2464]"
-                />
-              ))}
+            <div className="mt-3.5">
+              <input
+                ref={codeInputRef}
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={verificationCode}
+                onChange={(event) =>
+                  setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))
+                }
+                placeholder="Enter 6-digit code"
+                aria-label="Verification code"
+                autoComplete="one-time-code"
+                className="h-9 w-full rounded border border-[#d0d0d0] bg-white px-3 text-[13px] font-medium tracking-wide text-[#333] placeholder:font-normal placeholder:tracking-normal placeholder:text-[#a0a0a0] outline-none focus:border-[#1d2464]"
+              />
             </div>
 
             <div className="mt-3.5 text-[12px] text-[#555]">

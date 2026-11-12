@@ -268,4 +268,21 @@ export const teamManageApi = {
       token,
     })
   },
+
+  parsePermitDocument(token, fileOrText) {
+    if (fileOrText instanceof File) {
+      const formData = new FormData()
+      formData.append('file', fileOrText)
+      return apiRequest(`${MANAGE_BASE}/permits/parse/`, {
+        method: 'POST',
+        token,
+        body: formData,
+      })
+    }
+    return apiRequest(`${MANAGE_BASE}/permits/parse/`, {
+      method: 'POST',
+      token,
+      body: { permit_text: fileOrText },
+    })
+  },
 }

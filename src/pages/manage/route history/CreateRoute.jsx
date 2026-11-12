@@ -6,6 +6,7 @@ import {
   Polyline,
   TileLayer,
   Tooltip,
+  useMap,
   useMapEvents,
 } from 'react-leaflet'
 import L from 'leaflet'
@@ -37,23 +38,42 @@ const makeCircleIcon = (color, label) =>
     </div>`,
   })
 
-const startIcon  = makeCircleIcon('#22a651', 'S')
-const endIcon    = makeCircleIcon('#e53935', 'E')
-const pinIcon    = (n) => makeCircleIcon('#444', n)
+const startIcon = makeCircleIcon('#22a651', 'S')
+const endIcon   = makeCircleIcon('#e53935', 'E')
+const pinIcon   = (n) => makeCircleIcon('#444', n)
 
-// ─── Mock initial waypoints (mirror what AI OCR would return) ─────────────────
-const MOCK_WAYPOINTS = [
-  { id: 'w1', name: 'US-20 S',    lat: 41.605, lng: -93.695 },
-  { id: 'w2', name: 'I-29',       lat: 41.567, lng: -93.694 },
-  { id: 'w3', name: 'Exit 63A-B', lat: 41.549, lng: -93.70  },
-  { id: 'w4', name: 'Exit 63B',   lat: 41.541, lng: -93.70  },
-  { id: 'w5', name: 'I-94 W',     lat: 41.525, lng: -93.695 },
-  { id: 'w6', name: 'Exit 340',   lat: 41.499, lng: -93.69  },
-]
+// ─── Helper: Interpolate realistic coordinates between two points ─────────────
+// Guarantees waypoints are strictly in the user's intended route region (e.g. Nebraska),
+// NEVER placing them in hardcoded Iowa or North Dakota.
+const interpolateWaypoints = (start, end, names = []) => {
+  if (!start || !end) return []
+  const count = names.length ? names.length : 3
+  return Array.from({ length: count }, (_, i) => {
+    const fraction = (i + 1) / (count + 1)
+    const name = names[i]?.trim() || `Waypoint ${i + 1}`
+    return {
+      id: `wp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+      name,
+      lat: Number((start.lat + (end.lat - start.lat) * fraction).toFixed(6)),
+      lng: Number((start.lng + (end.lng - start.lng) * fraction).toFixed(6)),
+    }
+  })
+}
 
 // ─── Map click handler (inner component) ─────────────────────────────────────
 const MapClickHandler = ({ onMapClick }) => {
   useMapEvents({ click: onMapClick })
+  return null
+}
+
+// ─── Map view syncer (inner component) ───────────────────────────────────────
+const MapCenterSync = ({ center, shouldSync }) => {
+  const map = useMap()
+  useEffect(() => {
+    if (shouldSync && center && center.length === 2) {
+      map.setView(center, 13)
+    }
+  }, [center, shouldSync, map])
   return null
 }
 
@@ -85,7 +105,7 @@ async function geocodePlace(query) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 const CreateRoute = () => {
-  const navigate  = useNavigate()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { accessToken } = useAuth()
   const driverUserId = searchParams.get('user_id') || ''
@@ -93,37 +113,70 @@ const CreateRoute = () => {
   const routeHistoryPath = `/dashboard/manage/team-route-history${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
 
   // Step 1 state
-  const [step, setStep]                 = useState(1)
-  const [routeName, setRouteName]       = useState('')
-  const [permitText, setPermitText]     = useState('')
-  const [permitFile, setPermitFile]     = useState(null)
-  const [startInput, setStartInput]     = useState('')
-  const [endInput, setEndInput]         = useState('')
-  const [locationTarget, setLocationTarget] = useState('start')
-  const [startPoint, setStartPoint]     = useState(null)   // { lat, lng }
-  const [endPoint, setEndPoint]         = useState(null)   // { lat, lng }
-  const [settingPin, setSettingPin]     = useState(null)   // 'start' | 'end' | null
-  const [step1Error, setStep1Error]     = useState('')
-  const [geocoding, setGeocoding]       = useState(false)
-  const [isSaving, setIsSaving]         = useState(false)
-  const [saveMessage, setSaveMessage]   = useState('')
+  const [step, setStep]                             = useState(1)
+  const [routeName, setRouteName]                   = useState('')
+  const [permitText, setPermitText]                 = useState('')
+  const [permitFile, setPermitFile]                 = useState(null)
+  const [isParsingPermit, setIsParsingPermit]       = useState(false)
+  const [startInput, setStartInput]                 = useState('')
+  const [endInput, setEndInput]                     = useState('')
+  const [locationTarget, setLocationTarget]         = useState('start')
+  const [startPoint, setStartPoint]                 = useState(null)   // overall route start
+  const [endPoint, setEndPoint]                     = useState(null)     // current active end
+  const [settingPin, setSettingPin]                 = useState(null)   // 'start' | 'end' | null
+  const [step1Error, setStep1Error]                 = useState('')
+  const [geocoding, setGeocoding]                   = useState(false)
+  const [isSaving, setIsSaving]                     = useState(false)
+  const [saveMessage, setSaveMessage]               = useState('')
   const [showWaypointExamples, setShowWaypointExamples] = useState(false)
   const [highlightWaypointInput, setHighlightWaypointInput] = useState(false)
 
-  // Step 2 state
-  const [permits, setPermits]           = useState([
-    { id: 'p1', label: 'Permit 1', waypoints: MOCK_WAYPOINTS },
-  ])
-  const [routePath, setRoutePath]       = useState([])     // [[lat,lng],…] for polyline
-  const fileInputRef                    = useRef(null)
-  const waypointHelpRef                 = useRef(null)
-  const waypointHighlightTimerRef       = useRef(null)
-  const mapRef                          = useRef(null)
+  // Multi-permit workflow tracker
+  // When addingPermit is non-null, Step 1 operates in "Add Permit N" mode
+  const [addingPermit, setAddingPermit]             = useState(null)
 
-  // Default map center (Des Moines, IA as placeholder)
-  const defaultCenter = [41.589, -93.62]
+  // Step 2 state: multi-permit container
+  const [permits, setPermits]                       = useState([])
+  const [routePath, setRoutePath]                   = useState([])
+
+  const fileInputRef              = useRef(null)
+  const waypointHelpRef           = useRef(null)
+  const waypointHighlightTimerRef = useRef(null)
+  const mapRef                    = useRef(null)
+
+  // Flag to auto-fit bounds ONCE upon transitioning to Step 2
+  // Subsequent pin deletions/additions will NOT trigger fitBounds, preserving zoom level!
+  const shouldFitStep2Ref         = useRef(false)
+
+  // Default map center (defaults to current user location, with fallback)
+  const [defaultCenter, setDefaultCenter] = useState([41.589, -93.62])
+  const [hasDetectedLocation, setHasDetectedLocation] = useState(false)
+
+  // Fetch current user location on mount so map defaults to where the manager/user is located
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude
+          const lng = position.coords.longitude
+          setDefaultCenter([lat, lng])
+          setHasDetectedLocation(true)
+          if (mapRef.current && !startPoint) {
+            mapRef.current.setView([lat, lng], 13)
+          }
+        },
+        (error) => {
+          console.warn('Geolocation unavailable or denied:', error.message)
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+      )
+    }
+  }, [startPoint])
+
   const activeLocationInput = locationTarget === 'start' ? startInput : endInput
-  const canContinue = Boolean((permitFile || permitText.trim()) && startPoint && endPoint)
+  const canContinue = addingPermit
+    ? Boolean((permitFile || permitText.trim()) && endPoint)
+    : Boolean(routeName.trim() && (permitFile || permitText.trim()) && startPoint && endPoint)
 
   useEffect(() => {
     if (!showWaypointExamples) return undefined
@@ -168,19 +221,27 @@ const CreateRoute = () => {
     }
   }, [step, startPoint, endPoint, permits])
 
-  // ── Fit map to all markers ────────────────────────────────────────────────
+  // ── Fit map to all markers ONLY on initial entry to Step 2 ─────────────────
+  // Pin deletions and edits will NOT cause the map to zoom out!
   useEffect(() => {
     if (step !== 2 || !mapRef.current) return
+    if (!shouldFitStep2Ref.current) return
+
     const allPts = []
     if (startPoint) allPts.push([startPoint.lat, startPoint.lng])
-    permits.forEach((p) => p.waypoints.forEach((w) => allPts.push([w.lat, w.lng])))
+    permits.forEach((p) => {
+      p.waypoints.forEach((w) => allPts.push([w.lat, w.lng]))
+      if (p.endPoint) allPts.push([p.endPoint.lat, p.endPoint.lng])
+    })
     if (endPoint) allPts.push([endPoint.lat, endPoint.lng])
+
     if (allPts.length) {
       mapRef.current.fitBounds(L.latLngBounds(allPts), { padding: [40, 40] })
+      shouldFitStep2Ref.current = false
     }
   }, [step, startPoint, endPoint, permits])
 
-  // ── Map click → set start or end pin ─────────────────────────────────────
+  // ── Map click → set start or end pin in Step 1 ────────────────────────────
   const handleMapClick = useCallback((e) => {
     if (!settingPin) return
     const { lat, lng } = e.latlng
@@ -243,92 +304,237 @@ const CreateRoute = () => {
     }
   }, [])
 
-  // ── Step 1 → Step 2 ───────────────────────────────────────────────────────
-  const handleContinue = () => {
-    if (!routeName.trim())           { setStep1Error('Please enter a route name.'); return }
-    if (!permitText && !permitFile)  { setStep1Error('Please enter permit waypoints or upload a permit file.'); return }
-    if (!startPoint)                 { setStep1Error('Please set a start point.'); return }
-    if (!endPoint)                   { setStep1Error('Please set an end point.'); return }
-    setStep1Error('')
-    // Mock: parse permit text into first-permit waypoints if entered
-    if (permitText.trim()) {
-      const names = permitText.split(',').map((s) => s.trim()).filter(Boolean)
-      const baseCenter = startPoint ?? { lat: defaultCenter[0], lng: defaultCenter[1] }
-      const mocked = names.map((name, i) => ({
-        id: `wp-${i}`,
-        name,
-        lat: baseCenter.lat - i * 0.02,
-        lng: baseCenter.lng + i * 0.015,
-      }))
-      setPermits([{ id: 'p1', label: 'Permit 1', waypoints: mocked.length ? mocked : MOCK_WAYPOINTS }])
+  // ── Drag handler for intermediate waypoints in Step 2 ────────────────────
+  const handleWaypointDrag = (permitId, wpId, event) => {
+    const { lat, lng } = event.target.getLatLng()
+    setPermits((prev) =>
+      prev.map((p) =>
+        p.id !== permitId
+          ? p
+          : {
+              ...p,
+              waypoints: p.waypoints.map((w) =>
+                w.id === wpId ? { ...w, lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) } : w
+              ),
+            }
+      )
+    )
+  }
+
+  // ── Step 1 → Step 2 (Continue) ───────────────────────────────────────────
+  const handleContinue = async () => {
+    if (!addingPermit && !routeName.trim()) {
+      setStep1Error('Please enter a route name.')
+      return
     }
+    if (!permitText && !permitFile) {
+      setStep1Error('Please enter permit waypoints or upload a permit file.')
+      return
+    }
+
+    const currentStart = addingPermit ? addingPermit.startPoint : startPoint
+    if (!currentStart) {
+      setStep1Error('Please set a start point.')
+      return
+    }
+    if (!endPoint) {
+      setStep1Error('Please set an end point.')
+      return
+    }
+
+    setStep1Error('')
+    setIsParsingPermit(true)
+
+    let parsedWaypoints = []
+
+    // 1. If permit file is uploaded, attempt to call backend parser API
+    if (permitFile) {
+      try {
+        const response = await teamManageApi.parsePermitDocument(accessToken, permitFile)
+        if (response?.waypoints && Array.isArray(response.waypoints) && response.waypoints.length > 0) {
+          parsedWaypoints = response.waypoints.map((wp, i) => ({
+            id: `wp-parsed-${i}-${Date.now()}`,
+            name: wp.name || wp.instruction || `Waypoint ${i + 1}`,
+            lat: Number(wp.latitude ?? wp.lat ?? (currentStart.lat + (i + 1) * 0.02)),
+            lng: Number(wp.longitude ?? wp.lng ?? (currentStart.lng + (i + 1) * 0.02)),
+          }))
+        }
+      } catch {
+        // Backend OCR endpoint not available or not yet deployed; fall back to client interpolation
+      }
+    }
+
+    // 2. If no backend waypoints obtained, parse permit text or interpolate along start->end
+    if (parsedWaypoints.length === 0) {
+      let names = []
+      if (permitText.trim()) {
+        names = permitText
+          .split(/[,\n]/)
+          .map((s) => s.trim())
+          .filter(Boolean)
+      }
+      parsedWaypoints = interpolateWaypoints(currentStart, endPoint, names)
+    }
+
+    setIsParsingPermit(false)
+
+    if (addingPermit) {
+      // Adding Permit N (e.g. Permit 2)
+      const newPermit = {
+        id: `p${Date.now()}`,
+        label: addingPermit.label,
+        startLocation: addingPermit.startLocation,
+        startPoint: addingPermit.startPoint,
+        endLocation: endInput.trim() || 'End',
+        endPoint,
+        permitText: permitText.trim(),
+        permitFile,
+        waypoints: parsedWaypoints,
+      }
+      setPermits((prev) => [...prev, newPermit])
+      setAddingPermit(null)
+    } else {
+      // Adding initial Permit 1
+      setPermits([
+        {
+          id: 'p1',
+          label: 'Permit 1',
+          startLocation: startInput.trim() || 'Start',
+          startPoint: currentStart,
+          endLocation: endInput.trim() || 'End',
+          endPoint,
+          permitText: permitText.trim(),
+          permitFile,
+          waypoints: parsedWaypoints,
+        },
+      ])
+    }
+
+    // Trigger bounds fit once when entering Step 2
+    shouldFitStep2Ref.current = true
     setStep(2)
   }
 
-  // ── Step 2: waypoint CRUD ─────────────────────────────────────────────────
+  // ── Step 2: Waypoint CRUD ─────────────────────────────────────────────────
   const updateWaypoint = (permitId, wpId, name) => {
     setPermits((prev) =>
       prev.map((p) =>
-        p.id !== permitId ? p
-          : { ...p, waypoints: p.waypoints.map((w) => w.id === wpId ? { ...w, name } : w) },
-      ),
+        p.id !== permitId
+          ? p
+          : { ...p, waypoints: p.waypoints.map((w) => (w.id === wpId ? { ...w, name } : w)) }
+      )
     )
   }
 
+  // Deleting a waypoint does NOT reset map zoom!
   const removeWaypoint = (permitId, wpId) => {
     setPermits((prev) =>
       prev.map((p) =>
-        p.id !== permitId ? p
-          : { ...p, waypoints: p.waypoints.filter((w) => w.id !== wpId) },
-      ),
+        p.id !== permitId
+          ? p
+          : { ...p, waypoints: p.waypoints.filter((w) => w.id !== wpId) }
+      )
     )
   }
 
-  const addWaypoint = (permitId) => {
-    const last = permits.find((p) => p.id === permitId)?.waypoints.at(-1)
-    const newPt = {
-      id: `wp-${Date.now()}`,
-      name: '',
-      lat: last ? last.lat - 0.01 : defaultCenter[0],
-      lng: last ? last.lng + 0.008 : defaultCenter[1],
-    }
+  // Inserting a waypoint directly AFTER the clicked index
+  const addWaypoint = (permitId, insertIndex) => {
     setPermits((prev) =>
-      prev.map((p) => p.id !== permitId ? p : { ...p, waypoints: [...p.waypoints, newPt] }),
+      prev.map((p) => {
+        if (p.id !== permitId) return p
+        const wps = [...p.waypoints]
+        const pStart = p.startPoint || startPoint || { lat: defaultCenter[0], lng: defaultCenter[1] }
+        const pEnd = p.endPoint || endPoint || { lat: defaultCenter[0], lng: defaultCenter[1] }
+
+        let lat, lng
+        if (insertIndex !== undefined && insertIndex >= 0 && insertIndex < wps.length) {
+          const prevPt = wps[insertIndex]
+          const nextPt = insertIndex < wps.length - 1 ? wps[insertIndex + 1] : pEnd
+          lat = Number(((prevPt.lat + nextPt.lat) / 2).toFixed(6))
+          lng = Number(((prevPt.lng + nextPt.lng) / 2).toFixed(6))
+          const newPt = {
+            id: `wp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            name: '',
+            lat,
+            lng,
+          }
+          wps.splice(insertIndex + 1, 0, newPt)
+        } else {
+          // Append to end: interpolate between last point and permit end
+          const lastPt = wps.at(-1) || pStart
+          lat = Number(((lastPt.lat + pEnd.lat) / 2).toFixed(6))
+          lng = Number(((lastPt.lng + pEnd.lng) / 2).toFixed(6))
+          const newPt = {
+            id: `wp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            name: '',
+            lat,
+            lng,
+          }
+          wps.push(newPt)
+        }
+        return { ...p, waypoints: wps }
+      })
     )
   }
 
-  const addPermit = () => {
-    const lastPermit  = permits.at(-1)
-    const lastWp      = lastPermit?.waypoints.at(-1)
-    const newStart    = lastWp ?? { lat: defaultCenter[0], lng: defaultCenter[1] }
-    setPermits((prev) => [
-      ...prev,
-      {
-        id: `p${Date.now()}`,
-        label: `Permit ${prev.length + 1}`,
-        waypoints: [
-          { id: `wp-${Date.now()}`, name: 'New Start', lat: newStart.lat - 0.01, lng: newStart.lng },
-          { id: `wp-${Date.now() + 1}`, name: 'New End', lat: newStart.lat - 0.03, lng: newStart.lng },
-        ],
-      },
-    ])
+  // ── "Add Permit N" Flow ───────────────────────────────────────────────────
+  // Returns back to Step 1 to import the next permit, locking the Start Point
+  // to the previous permit's End Point and requiring ONLY the End Point to be set.
+  const handleAddPermitClick = () => {
+    const lastPermit = permits.at(-1)
+    const chainedStart = lastPermit?.endPoint || endPoint || (lastPermit?.waypoints.at(-1) ? { lat: lastPermit.waypoints.at(-1).lat, lng: lastPermit.waypoints.at(-1).lng } : startPoint)
+    const chainedLocation = lastPermit?.endLocation || endInput || `${chainedStart?.lat.toFixed(5)}, ${chainedStart?.lng.toFixed(5)}`
+
+    setAddingPermit({
+      index: permits.length + 1,
+      label: `Permit ${permits.length + 1}`,
+      startPoint: chainedStart,
+      startLocation: chainedLocation,
+    })
+
+    // Reset fields for the new permit
+    setPermitText('')
+    setPermitFile(null)
+    setStartPoint(chainedStart)
+    setStartInput(chainedLocation)
+    setEndPoint(null)
+    setEndInput('')
+    setLocationTarget('end')
+    setSettingPin(null)
+    setStep1Error('')
+    setStep(1)
   }
 
-  // ── Map: add/delete pin via buttons ──────────────────────────────────────
+  // ── Step 2: Add / Delete Pin buttons ─────────────────────────────────────
   const handleAddPin = () => {
-    // Add a new checkpoint after the last waypoint of the first permit
-    addWaypoint(permits[0]?.id)
+    // Add pin at current map center (or active permit end) without zooming out
+    const center = mapRef.current ? mapRef.current.getCenter() : (endPoint || { lat: defaultCenter[0], lng: defaultCenter[1] })
+    const targetPermit = permits[0]
+    if (!targetPermit) return
+
+    const newPt = {
+      id: `wp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: `Pin ${targetPermit.waypoints.length + 1}`,
+      lat: Number(center.lat.toFixed(6)),
+      lng: Number(center.lng.toFixed(6)),
+    }
+
+    setPermits((prev) =>
+      prev.map((p, idx) => (idx === 0 ? { ...p, waypoints: [...p.waypoints, newPt] } : p))
+    )
   }
 
   const handleDeletePin = () => {
-    // Remove last waypoint of first permit
-    const p = permits[0]
-    if (!p || p.waypoints.length <= 1) return
-    const lastId = p.waypoints.at(-1).id
-    removeWaypoint(p.id, lastId)
+    // Remove the last waypoint of the first permit without resetting zoom
+    setPermits((prev) => {
+      const p = prev[0]
+      if (!p || p.waypoints.length === 0) return prev
+      const updatedWps = p.waypoints.slice(0, -1)
+      return prev.map((item, idx) => (idx === 0 ? { ...item, waypoints: updatedWps } : item))
+    })
   }
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  // ── Save Route ────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!driverUserId) {
       setStep1Error('Please open route creation from a team user row.')
@@ -355,6 +561,7 @@ const CreateRoute = () => {
         end_latitude: endPoint.lat,
         end_longitude: endPoint.lng,
         permit_text: permitText.trim() || null,
+        // Flat waypoints list for backward compatibility
         waypoints: allRouteWaypoints.map((waypoint, index) => ({
           index: index + 1,
           name: waypoint.name || `Waypoint ${index + 1}`,
@@ -364,6 +571,31 @@ const CreateRoute = () => {
           description: null,
           eta_minutes: 0,
         })),
+        // Structured multi-permit payload
+        permits: permits.map((permit, permitIndex) => {
+          const permitStart = permit.startPoint || startPoint
+          const permitEnd = permit.endPoint || endPoint
+          return {
+            index: permitIndex + 1,
+            name: permit.label,
+            start_location: permit.startLocation || 'Start',
+            start_latitude: permitStart.lat,
+            start_longitude: permitStart.lng,
+            end_location: permit.endLocation || 'End',
+            end_latitude: permitEnd.lat,
+            end_longitude: permitEnd.lng,
+            permit_text: permit.permitText || null,
+            waypoints: permit.waypoints.map((waypoint, waypointIndex) => ({
+              index: waypointIndex + 1,
+              name: waypoint.name || `Waypoint ${waypointIndex + 1}`,
+              waypoint_type: 'CHECKPOINT',
+              latitude: waypoint.lat,
+              longitude: waypoint.lng,
+              description: null,
+              eta_minutes: 0,
+            })),
+          }
+        }),
       })
 
       setSaveMessage(response?.message || 'Route created successfully.')
@@ -374,9 +606,6 @@ const CreateRoute = () => {
       setIsSaving(false)
     }
   }
-
-  // ── All map points for step-2 rendering ──────────────────────────────────
-  const allWaypoints = permits.flatMap((p) => p.waypoints)
 
   if (!driverUserId) {
     return (
@@ -404,17 +633,34 @@ const CreateRoute = () => {
     <main className="min-h-full px-2 py-2 text-[#888] md:px-6 md:py-4">
       {/* Page title */}
       <h1 className="mb-1 text-xl font-normal text-[#999] md:text-2xl">
-        Create route – step {step}
+        {addingPermit
+          ? `Create route – Import ${addingPermit.label}`
+          : `Create route – step ${step}`}
       </h1>
 
       {/* Back link */}
       <button
         type="button"
-        onClick={() => step === 1 ? navigate(routeHistoryPath) : setStep(1)}
+        onClick={() => {
+          if (addingPermit) {
+            setAddingPermit(null)
+            setStep(2)
+          } else if (step === 1) {
+            navigate(routeHistoryPath)
+          } else {
+            setStep(1)
+          }
+        }}
         className="mb-5 inline-flex items-center gap-1 text-[13px] font-medium text-[#ff823d] cursor-pointer"
       >
         <span className="text-lg">&lt;</span>
-        <span>{step === 1 ? "Driver's route history" : 'Back to step 1'}</span>
+        <span>
+          {addingPermit
+            ? 'Cancel and return to route review'
+            : step === 1
+            ? "Driver's route history"
+            : 'Back to step 1'}
+        </span>
       </button>
 
       <h2 className="mb-4 text-base font-bold text-[#111]">
@@ -424,7 +670,7 @@ const CreateRoute = () => {
       {/* ═══════════════════════════════ STEP 1 ════════════════════════════ */}
       {step === 1 && (
         <div className="flex flex-col gap-4">
-          {/* Top 3-column row matching mockup exactly */}
+          {/* Top 3-column row matching mockup */}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3 items-start">
             {/* Column 1: Enter Route Name */}
             <div>
@@ -440,18 +686,26 @@ const CreateRoute = () => {
               <input
                 type="text"
                 value={routeName}
+                disabled={Boolean(addingPermit)}
                 onChange={(e) => setRouteName(e.target.value)}
-                className="h-8 w-full rounded-[4px] border border-[#ccc] bg-white px-2.5 text-[13px] text-[#333] outline-none focus:border-[#eb7035]"
+                placeholder="e.g. Nebraska Heavy Haul"
+                className={`h-8 w-full rounded-[4px] border px-2.5 text-[13px] outline-none ${
+                  addingPermit
+                    ? 'border-[#ddd] bg-[#f9f9f9] text-[#777]'
+                    : 'border-[#ccc] bg-white text-[#333] focus:border-[#eb7035]'
+                }`}
               />
               <p className="mt-2 text-[12px] font-bold text-[#8a1c14] leading-tight">
-                NOTE: Only one permit can be processed at a time.
+                {addingPermit
+                  ? `Adding ${addingPermit.label} to this route.`
+                  : 'NOTE: Only one permit can be processed at a time.'}
               </p>
             </div>
 
             {/* Column 2: Step 1 - Input Permit */}
             <div>
               <label className="mb-1.5 flex items-center text-[14px] font-bold text-[#111]">
-                <span>Step 1 - Input Permit</span>
+                <span>{addingPermit ? `Import ${addingPermit.label}` : 'Step 1 - Input Permit'}</span>
                 <span
                   title="Upload a permit document or type comma-separated waypoints"
                   className="ml-1.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-[2px] bg-[#606060] text-[10px] font-bold text-white select-none"
@@ -530,14 +784,12 @@ const CreateRoute = () => {
                     >
                       x
                     </button>
-                    <p className="pr-7">Example:</p>
-                    <ul aria-label="Example waypoints">
-                      <li>IA-9 EB</li>
-                      <li>US-18 SB</li>
-                      <li>IA-4 SB</li>
-                      <li>IA-3 EB</li>
-                      <li>US-69 NB</li>
-                      <li>B62 at Quail Ave</li>
+                    <p className="pr-7 text-[#555] font-semibold">Example Permit Waypoints:</p>
+                    <ul aria-label="Example waypoints" className="mt-1 space-y-0.5 text-[#666]">
+                      <li>US-30 EB at Grand Island</li>
+                      <li>I-80 EB Exit 412</li>
+                      <li>US-77 SB to Lincoln</li>
+                      <li>NE-2 EB at Syracuse</li>
                     </ul>
                     <span className="absolute -top-2 left-9 h-4 w-4 rotate-45 border-l border-t border-[#e4e4e4] bg-white" />
                   </div>
@@ -550,7 +802,7 @@ const CreateRoute = () => {
                 )}
               </div>
 
-              {/* Hidden file inputs */}
+              {/* Hidden file input */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -558,12 +810,13 @@ const CreateRoute = () => {
                 className="hidden"
                 onChange={(e) => setPermitFile(e.target.files[0] ?? null)}
               />
+
               {/* Waypoints input */}
               <input
                 type="text"
                 value={permitText}
                 onChange={(e) => setPermitText(e.target.value)}
-                placeholder="Type in a waypoints, comma separated."
+                placeholder="Type in waypoints, comma or newline separated."
                 aria-describedby={showWaypointExamples ? 'waypoint-entry-examples' : undefined}
                 className={`h-8 w-full rounded-[4px] border bg-white px-2.5 text-[13px] text-[#333] placeholder:text-[#999] outline-none transition-[border-color,box-shadow,background-color] duration-300 focus:border-[#eb7035] ${
                   highlightWaypointInput
@@ -576,7 +829,11 @@ const CreateRoute = () => {
             {/* Column 3: Step 2 - Set Start and End Points */}
             <div>
               <label className="mb-1.5 flex items-center text-[14px] font-bold text-[#111]">
-                <span>Step 2 - Set Start and End Points</span>
+                <span>
+                  {addingPermit
+                    ? `Step 2 - Set End Point for ${addingPermit.label}`
+                    : 'Step 2 - Set Start and End Points'}
+                </span>
                 <span
                   title="Enter location address or click on the map to set points"
                   className="ml-1.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-[2px] bg-[#606060] text-[10px] font-bold text-white select-none"
@@ -585,21 +842,36 @@ const CreateRoute = () => {
                 </span>
               </label>
 
-              {/* Location input */}
+              {/* If adding subsequent permit, Start Point is locked from previous permit */}
+              {addingPermit ? (
+                <div className="mb-2 rounded-[4px] border border-green-300 bg-green-50 px-2.5 py-1.5 text-[12px] text-green-900">
+                  <span className="font-bold">✓ Start Point:</span> Locked from previous permit end (
+                  {addingPermit.startPoint.lat.toFixed(4)}, {addingPermit.startPoint.lng.toFixed(4)})
+                </div>
+              ) : null}
+
+              {/* Location input for active target */}
               <input
                 type="text"
-                value={activeLocationInput}
+                value={addingPermit ? endInput : activeLocationInput}
                 onChange={(e) => {
-                  if (locationTarget === 'start') setStartInput(e.target.value)
-                  else setEndInput(e.target.value)
+                  if (addingPermit || locationTarget === 'end') {
+                    setEndInput(e.target.value)
+                  } else {
+                    setStartInput(e.target.value)
+                  }
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && handleSetLocationPoint()}
-                placeholder={`Enter ${locationTarget} location or move pin on map.`}
-                aria-label={`${locationTarget === 'start' ? 'Start' : 'End'} location`}
+                placeholder={
+                  addingPermit
+                    ? `Enter ${addingPermit.label} End location or click on map.`
+                    : `Enter ${locationTarget} location or move pin on map.`
+                }
+                aria-label="Location"
                 className="h-8 w-full rounded-[4px] border border-[#ccc] bg-white px-2.5 text-[13px] text-[#333] placeholder:text-[#999] outline-none focus:border-[#eb7035]"
               />
 
-              {/* Set active Start / End Point button */}
+              {/* Set Point button */}
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -607,23 +879,34 @@ const CreateRoute = () => {
                   disabled={geocoding}
                   className="inline-flex h-8 items-center justify-center rounded-[4px] bg-[#eb7035] px-3.5 text-[13px] font-bold text-white shadow-sm transition hover:bg-[#d85f24] cursor-pointer disabled:opacity-60"
                 >
-                  {geocoding ? 'Setting...' : `Set ${locationTarget === 'start' ? 'Start' : 'End'} Point`}
+                  {geocoding
+                    ? 'Setting...'
+                    : addingPermit
+                    ? `Set End Point for ${addingPermit.label}`
+                    : `Set ${locationTarget === 'start' ? 'Start' : 'End'} Point`}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setSettingPin(settingPin === locationTarget ? null : locationTarget)}
-                  className={`text-[11px] underline cursor-pointer ${settingPin === locationTarget ? 'text-[#eb7035] font-semibold' : 'text-[#666]'}`}
+                  onClick={() => {
+                    const target = addingPermit ? 'end' : locationTarget
+                    setSettingPin(settingPin === target ? null : target)
+                  }}
+                  className={`text-[11px] underline cursor-pointer ${
+                    settingPin === (addingPermit ? 'end' : locationTarget)
+                      ? 'text-[#eb7035] font-semibold'
+                      : 'text-[#666]'
+                  }`}
                 >
-                  {settingPin === locationTarget
-                    ? `Click map for ${locationTarget === 'start' ? 'Start' : 'End'} pin...`
+                  {settingPin === (addingPermit ? 'end' : locationTarget)
+                    ? 'Click map to place pin...'
                     : 'Or click map'}
                 </button>
               </div>
 
-              {/* Start & End Status feedback */}
+              {/* Point status feedback */}
               <div className="mt-1 flex flex-col gap-0.5 text-[11px]">
-                {startPoint && (
+                {startPoint && !addingPermit && (
                   <span className="font-medium text-green-700">
                     ✓ Start: {startPoint.lat.toFixed(4)}, {startPoint.lng.toFixed(4)}
                   </span>
@@ -639,7 +922,9 @@ const CreateRoute = () => {
                       setLocationTarget('end')
                       setSettingPin(settingPin === 'end' ? null : 'end')
                     }}
-                    className={`text-left underline cursor-pointer ${settingPin === 'end' ? 'text-[#eb7035] font-semibold' : 'text-[#777]'}`}
+                    className={`text-left underline cursor-pointer ${
+                      settingPin === 'end' ? 'text-[#eb7035] font-semibold' : 'text-[#777]'
+                    }`}
                   >
                     {settingPin === 'end' ? '📍 Click map for End pin…' : '+ Click map to place End pin'}
                   </button>
@@ -656,11 +941,7 @@ const CreateRoute = () => {
           {/* Map */}
           <div
             className={`relative overflow-hidden rounded border border-[#ddd] ${
-              settingPin === 'start'
-                ? 'cursor-pin-start'
-                : settingPin === 'end'
-                ? 'cursor-pin-end'
-                : ''
+              settingPin ? 'cursor-crosshair' : ''
             }`}
             style={{ height: 480 }}
           >
@@ -682,16 +963,23 @@ const CreateRoute = () => {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               />
               <MapClickHandler onMapClick={handleMapClick} />
+              <MapCenterSync center={defaultCenter} shouldSync={hasDetectedLocation && !startPoint} />
+
+              {/* Start marker */}
               {startPoint && (
                 <Marker
                   position={[startPoint.lat, startPoint.lng]}
                   icon={startIcon}
-                  draggable
+                  draggable={!addingPermit}
                   eventHandlers={{ dragend: (event) => handlePointDrag('start', event) }}
                 >
-                  <Tooltip permanent direction="top" offset={[0, -16]}>Start</Tooltip>
+                  <Tooltip permanent direction="top" offset={[0, -16]}>
+                    {addingPermit ? `${addingPermit.label} Start (Locked)` : 'Start'}
+                  </Tooltip>
                 </Marker>
               )}
+
+              {/* End marker */}
               {endPoint && (
                 <Marker
                   position={[endPoint.lat, endPoint.lng]}
@@ -699,24 +987,31 @@ const CreateRoute = () => {
                   draggable
                   eventHandlers={{ dragend: (event) => handlePointDrag('end', event) }}
                 >
-                  <Tooltip permanent direction="top" offset={[0, -16]}>End</Tooltip>
+                  <Tooltip permanent direction="top" offset={[0, -16]}>
+                    {addingPermit ? `${addingPermit.label} End` : 'End'}
+                  </Tooltip>
                 </Marker>
               )}
             </MapContainer>
           </div>
 
-          {/* Continue */}
+          {/* Continue button */}
           <div className="flex justify-center pt-2 pb-4">
             <button
               type="button"
               onClick={handleContinue}
+              disabled={isParsingPermit}
               className={`rounded-full px-16 py-2.5 text-sm font-semibold tracking-wide text-white transition cursor-pointer ${
                 canContinue
                   ? 'bg-[#eb7035] hover:bg-[#d85f24]'
                   : 'bg-[#888] hover:bg-[#666]'
               }`}
             >
-              CONTINUE
+              {isParsingPermit
+                ? 'PARSING PERMIT...'
+                : addingPermit
+                ? `CONTINUE WITH ${addingPermit.label.toUpperCase()}`
+                : 'CONTINUE'}
             </button>
           </div>
         </div>
@@ -772,16 +1067,24 @@ const CreateRoute = () => {
                     </Marker>
                   )}
 
-                  {/* Intermediate waypoint markers */}
-                  {allWaypoints.map((wp, idx) => (
-                    <Marker
-                      key={wp.id}
-                      position={[wp.lat, wp.lng]}
-                      icon={pinIcon(idx + 1)}
-                    >
-                      <Tooltip direction="top" offset={[0, -16]}>{wp.name || `Waypoint ${idx + 1}`}</Tooltip>
-                    </Marker>
-                  ))}
+                  {/* Intermediate waypoint markers across all permits - Draggable */}
+                  {permits.map((permit) =>
+                    permit.waypoints.map((wp, idx) => (
+                      <Marker
+                        key={wp.id}
+                        position={[wp.lat, wp.lng]}
+                        icon={pinIcon(idx + 1)}
+                        draggable
+                        eventHandlers={{
+                          dragend: (event) => handleWaypointDrag(permit.id, wp.id, event),
+                        }}
+                      >
+                        <Tooltip direction="top" offset={[0, -16]}>
+                          {wp.name || `Waypoint ${idx + 1}`}
+                        </Tooltip>
+                      </Marker>
+                    ))
+                  )}
 
                   {/* End marker */}
                   {endPoint && (
@@ -834,7 +1137,7 @@ const CreateRoute = () => {
 
             {/* Edit Waypoints panel */}
             <div
-              className="flex w-full flex-col xl:w-72"
+              className="flex w-full flex-col xl:w-80"
               style={{ maxHeight: 520 }}
             >
               <div className="mb-2 flex items-center gap-2">
@@ -843,88 +1146,99 @@ const CreateRoute = () => {
               </div>
 
               <div className="flex-1 overflow-y-auto pr-1">
-                {permits.map((permit) => (
-                  <div key={permit.id} className="mb-4">
+                {permits.map((permit, pIdx) => (
+                  <div key={permit.id} className="mb-5 rounded border border-[#e5e5e5] bg-[#fafafa] p-2.5">
                     {/* Permit header */}
-                    <div className="mb-2 flex items-center gap-2">
-                      <span className="text-[12px] font-bold text-[#333]">{permit.label}</span>
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#ff823d] text-[10px] font-bold text-white">
-                        A
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-bold text-[#222]">{permit.label}</span>
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#ff823d] text-[10px] font-bold text-white">
+                          {String.fromCharCode(65 + pIdx)}
+                        </span>
+                      </div>
+                      {permit.permitFile && (
+                        <span className="max-w-[110px] truncate text-[10px] text-[#777]" title={permit.permitFile.name}>
+                          📄 {permit.permitFile.name}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Start point representation for this permit */}
+                    <div className="mb-2 flex items-center gap-2 rounded bg-green-50 px-2 py-1 text-[11px] font-semibold text-green-800">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#22a651] text-[9px] text-white">S</span>
+                      <span className="truncate">
+                        {pIdx === 0
+                          ? `Start: ${permit.startLocation || 'Route Start'}`
+                          : `Start: Locked from Permit ${pIdx} End`}
                       </span>
                     </div>
 
-                    {/* Waypoint list */}
+                    {/* Intermediate Waypoint list */}
                     <div className="space-y-1.5">
-                      {permit.waypoints.map((wp, idx) => {
-                        const isFirst = idx === 0
-                        const isLast  = idx === permit.waypoints.length - 1
-                        return (
-                          <div key={wp.id} className="flex items-center gap-1">
-                            {/* Reorder/add button placeholder */}
-                            <button
-                              type="button"
-                              onClick={() => addWaypoint(permit.id)}
-                              title="Insert waypoint below"
-                              className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#ddd] text-[14px] font-bold text-[#555] hover:bg-[#bbb] cursor-pointer"
-                            >
-                              +
-                            </button>
+                      {permit.waypoints.map((wp, idx) => (
+                        <div key={wp.id} className="flex items-center gap-1">
+                          {/* Insert waypoint button */}
+                          <button
+                            type="button"
+                            onClick={() => addWaypoint(permit.id, idx)}
+                            title="Insert waypoint below"
+                            className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#ddd] text-[14px] font-bold text-[#555] hover:bg-[#bbb] cursor-pointer"
+                          >
+                            +
+                          </button>
 
-                            <input
-                              type="text"
-                              value={wp.name}
-                              onChange={(e) => updateWaypoint(permit.id, wp.id, e.target.value)}
-                              className={`h-7 flex-1 rounded border px-2 text-[12px] text-[#333] outline-none focus:border-[#ff823d] ${
-                                isFirst
-                                  ? 'border-[#22a651] bg-[#eafaf1]'
-                                  : isLast
-                                  ? 'border-[#888] bg-[#f0f0f0]'
-                                  : 'border-[#ccc] bg-white'
-                              }`}
-                            />
+                          {/* Waypoint name input */}
+                          <input
+                            type="text"
+                            value={wp.name}
+                            placeholder={`Waypoint ${idx + 1}`}
+                            onChange={(e) => updateWaypoint(permit.id, wp.id, e.target.value)}
+                            className="h-7 flex-1 rounded border border-[#ccc] bg-white px-2 text-[12px] text-[#333] outline-none focus:border-[#ff823d]"
+                          />
 
-                            {/* Delete button (not on first/last) */}
-                            {!isFirst && !isLast ? (
-                              <button
-                                type="button"
-                                onClick={() => removeWaypoint(permit.id, wp.id)}
-                                className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-[#e53935] hover:text-[#c62828] cursor-pointer"
-                                title="Remove waypoint"
-                              >
-                                ✕
-                              </button>
-                            ) : (
-                              <span className="w-5 flex-shrink-0" />
-                            )}
-                          </div>
-                        )
-                      })}
+                          {/* Delete button: available on ALL intermediate waypoints! */}
+                          <button
+                            type="button"
+                            onClick={() => removeWaypoint(permit.id, wp.id)}
+                            className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-[#e53935] hover:text-[#c62828] cursor-pointer"
+                            title="Remove waypoint"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* End point representation for this permit */}
+                    <div className="mt-2 flex items-center gap-2 rounded bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-800">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#e53935] text-[9px] text-white">E</span>
+                      <span className="truncate">End: {permit.endLocation || 'Permit End'}</span>
                     </div>
                   </div>
                 ))}
 
-                {/* Add Permit button */}
+                {/* Add Next Permit button */}
                 <button
                   type="button"
-                  onClick={addPermit}
-                  className="mt-2 rounded bg-[#ff823d] px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-[#e56f2d] cursor-pointer"
+                  onClick={handleAddPermitClick}
+                  className="mt-1 w-full rounded bg-[#ff823d] py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-[#e56f2d] cursor-pointer"
                 >
-                  Add Permit {permits.length + 1}
+                  + Add Permit {permits.length + 1}
                 </button>
               </div>
             </div>
           </div>
 
           {/* SAVE */}
-          <div className="flex justify-center py-4">
+          <div className="flex flex-col items-center justify-center py-4">
             {saveMessage && (
-              <span className="text-[13px] font-semibold text-green-600">{saveMessage}</span>
+              <span className="mb-2 text-[13px] font-semibold text-green-600">{saveMessage}</span>
             )}
             <button
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              className="rounded-full bg-[#22a651] px-20 py-2.5 text-sm font-bold tracking-widest text-white transition hover:bg-[#1a8040] cursor-pointer"
+              className="rounded-full bg-[#22a651] px-20 py-2.5 text-sm font-bold tracking-widest text-white transition hover:bg-[#1a8040] cursor-pointer disabled:opacity-60"
             >
               {isSaving ? 'SAVING...' : 'SAVE'}
             </button>

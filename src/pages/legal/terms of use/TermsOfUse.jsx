@@ -626,7 +626,12 @@ const TermsOfUse = () => {
             <br />
             Vernal, UT 84078
             <br />
-            legal@getrightroute.app
+            <a
+              className="text-[#ff823d] underline hover:opacity-85"
+              href="mailto:legal@getrightroute.app"
+            >
+              legal@getrightroute.app
+            </a>
           </p>
 
           <h4 className="mt-4 font-semibold text-gray-700">13.8 Force Majeure</h4>

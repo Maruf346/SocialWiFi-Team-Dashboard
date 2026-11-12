@@ -100,11 +100,29 @@ export const AuthProvider = ({ children }) => {
 
   const resendOtp = useCallback(async (email) => {
     const response = await teamAuthApi.resendOtp({ email })
+    const currentPending = readJson(PENDING_LOGIN_KEY)
 
     const nextPendingLogin = {
       email: response.email || email,
       maskedEmail: response.masked_email || response.email || email,
       message: response.message || '',
+      redirectTo: currentPending?.redirectTo || null,
+    }
+
+    writeJson(PENDING_LOGIN_KEY, nextPendingLogin)
+    setPendingLogin(nextPendingLogin)
+
+    return response
+  }, [])
+
+  const forgotPassword = useCallback(async (email) => {
+    const response = await teamAuthApi.forgotPassword({ email })
+
+    const nextPendingLogin = {
+      email: response?.email || email,
+      maskedEmail: response?.masked_email || response?.email || email,
+      message: response?.message || '',
+      redirectTo: '/dashboard/manage/email',
     }
 
     writeJson(PENDING_LOGIN_KEY, nextPendingLogin)
@@ -119,16 +137,20 @@ export const AuthProvider = ({ children }) => {
   }, [clearPendingLogin, persistSession])
 
   const logout = useCallback(async () => {
-    const token = session?.accessToken
+    const storedSession = readJson(SESSION_STORAGE_KEY)
+    const token = session?.accessToken || storedSession?.accessToken
+    const refreshToken = session?.refreshToken || storedSession?.refreshToken
 
     try {
       if (token) {
-        await teamAuthApi.logout(token)
+        await teamAuthApi.logout(token, refreshToken)
       }
+    } catch (error) {
+      console.warn('Logout API call error:', error)
     } finally {
       clearSession()
     }
-  }, [clearSession, session?.accessToken])
+  }, [clearSession, session?.accessToken, session?.refreshToken])
 
   const refreshSession = useCallback(async () => {
     const token = readJson(SESSION_STORAGE_KEY)?.accessToken
@@ -199,12 +221,14 @@ export const AuthProvider = ({ children }) => {
     login,
     verifyOtp,
     resendOtp,
+    forgotPassword,
     logout,
     clearSession,
     refreshSession,
   }), [
     can,
     clearSession,
+    forgotPassword,
     isSessionLoading,
     isSuperAdmin,
     login,

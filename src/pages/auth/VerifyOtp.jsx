@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
-import { Navigate, useNavigate } from 'react-router'
+import { useEffect, useRef, useState } from 'react'
+import { Navigate, useLocation, useNavigate } from 'react-router'
 import { CheckCircle2, X } from 'lucide-react'
 import { Icons } from '../../assets/Images'
 import { useAuth } from '../../context/useAuth'
 
 const VerifyOtp = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { pendingLogin, resendOtp, verifyOtp, isAuthenticated } = useAuth()
   const [otpCode, setOtpCode] = useState('')
   const [showResentToast, setShowResentToast] = useState(false)
@@ -13,12 +14,21 @@ const VerifyOtp = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResending, setIsResending] = useState(false)
 
-  // Navigate to dashboard AFTER React has committed the session state.
-  // Using useEffect guarantees isAuthenticated is already true when
-  // DashboardLayout renders, avoiding the race with batched state updates.
+  const redirectTargetRef = useRef(
+    location.state?.redirectTo || pendingLogin?.redirectTo || '/dashboard'
+  )
+
+  useEffect(() => {
+    const target = location.state?.redirectTo || pendingLogin?.redirectTo
+    if (target) {
+      redirectTargetRef.current = target
+    }
+  }, [location.state?.redirectTo, pendingLogin?.redirectTo])
+
+  // Navigate after React has committed the session state.
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard', { replace: true })
+      navigate(redirectTargetRef.current || '/dashboard', { replace: true })
     }
   }, [isAuthenticated, navigate])
 

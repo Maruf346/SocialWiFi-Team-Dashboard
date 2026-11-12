@@ -191,14 +191,14 @@ const Disclaimer = () => {
             Questions about this disclaimer may be directed to:
           </p>
           <p className="mt-3">
-            Leavitt &amp; Davis LLC
+            LEAVITT &amp; DAVIS LLC
             <br />
-            7909 Lost River Road
+            1753 US Highway 40, Suite 2, PMB 15
             <br />
-            Horace, ND 58047
+            Vernal, UT 84078
             <br />
             <a
-              className="text-[#c3c3c3] hover:underline"
+              className="text-[#ff823d] underline hover:opacity-85"
               href="mailto:legal@getrightroute.app"
             >
               legal@getrightroute.app

@@ -9,8 +9,11 @@ const Header = ({ onMenuClick }) => {
   const displayName = user?.full_name || user?.email || 'Team user'
 
   const handleLogout = async () => {
-    await logout()
-    navigate('/')
+    try {
+      await logout()
+    } finally {
+      navigate('/', { replace: true })
+    }
   }
 
   return (

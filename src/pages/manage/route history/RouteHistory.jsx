@@ -292,8 +292,8 @@ const RouteHistory = () => {
       )}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[22px] font-bold text-[#333]">
-          Route History of: <span className="font-bold text-[#2d2d2d]">{routeScopeLabel}</span>
+        <h2 className="text-sm font-bold text-[#222]">
+          Route History of: <span className="font-bold text-[#222]">{routeScopeLabel}</span>
         </h2>
 
         <div className="flex items-center gap-2">
@@ -319,9 +319,9 @@ const RouteHistory = () => {
       <div className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
         <section className="min-w-0">
           <div className="overflow-x-auto border border-[#eee]">
-            <table className="w-full min-w-[760px] border-collapse text-left">
+            <table className="w-full min-w-[760px] border-collapse text-left text-xs">
               <thead>
-                <tr className="h-8 bg-[#f3f3f3] uppercase text-[#999]">
+                <tr className="h-8 border-b border-[#eee] bg-[#f3f3f3] uppercase text-[#888] font-normal text-xs">
                   <th className="w-7 px-1">
                     <input
                       type="checkbox"
@@ -330,12 +330,12 @@ const RouteHistory = () => {
                       aria-label="Select all routes"
                     />
                   </th>
-                  <th className="w-16 px-2">#</th>
-                  <th className="px-2">Date created</th>
-                  <th className="px-2">Name</th>
-                  <th className="px-2">Driver</th>
-                  <th className="px-2">Status</th>
-                  <th className="w-12 px-1 text-right">View</th>
+                  <th className="w-16 px-2 font-semibold tracking-wider">#</th>
+                  <th className="px-2 font-semibold tracking-wider">Date created</th>
+                  <th className="px-2 font-semibold tracking-wider">Name</th>
+                  <th className="px-2 font-semibold tracking-wider">Driver</th>
+                  <th className="px-2 font-semibold tracking-wider">Status</th>
+                  <th className="w-12 px-1 text-right font-semibold tracking-wider">View</th>
                 </tr>
               </thead>
               <tbody>

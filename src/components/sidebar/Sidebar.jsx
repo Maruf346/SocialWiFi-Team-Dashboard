@@ -8,11 +8,6 @@ const menuGroups = [
       { label: 'Email/password', path: '/dashboard/manage/email', permission: 'manage.email_password' },
       { label: 'Admin users', path: '/dashboard/manage/admin-users', permission: 'manage.admin_users' },
       { label: 'Team users', path: '/dashboard/manage/team-users', permission: 'manage.team_users' },
-      {
-        label: 'Team driver route history',
-        path: '/dashboard/manage/team-route-history',
-        permission: 'manage.route_history.team',
-      },
       { label: 'Plan', path: '/dashboard/manage/plan', permission: 'manage.plan' },
     ],
   },
@@ -35,7 +30,7 @@ const menuGroups = [
   {
     title: 'SECURITY',
     items: [
-      { label: 'Logout', action: 'logout', permission: 'security.logout' },
+      { label: 'Logout', action: 'logout' },
       { label: 'Data protection', path: '/dashboard/security/data-protection', permission: 'security.data_protection' },
       { label: 'Delete account', path: '/dashboard/security/delete-account', permission: 'security.delete_account' },
     ],
@@ -53,8 +48,11 @@ const Sidebar = () => {
   }
 
   const handleLogout = async () => {
-    await logout()
-    navigate('/')
+    try {
+      await logout()
+    } finally {
+      navigate('/', { replace: true })
+    }
   }
 
   return (
@@ -98,9 +96,12 @@ const Sidebar = () => {
                       location.pathname === '/dashboard/add-user'
                     )
 
-                  const isRouteHistoryActive =
-                    item.label === 'Team driver route history' &&
-                    location.pathname.startsWith('/dashboard/manage/team-route-history')
+                  const isTeamUsersActive =
+                    item.label === 'Team users' &&
+                    (
+                      location.pathname === '/dashboard/manage/team-users' ||
+                      location.pathname.startsWith('/dashboard/manage/team-route-history')
+                    )
 
                   return (
                     <li key={item.label}>
@@ -108,7 +109,7 @@ const Sidebar = () => {
                         to={item.path}
                         className={() =>
                           `block border-b border-white px-3 py-2 font-medium transition-colors ${
-                            isAdminUsersActive || isRouteHistoryActive || (item.path === location.pathname && item.label !== 'Admin users')
+                            isAdminUsersActive || isTeamUsersActive || (item.path === location.pathname && item.label !== 'Admin users' && item.label !== 'Team users')
                               ? 'bg-[#ff823d] text-white'
                               : 'bg-[#f1f1f1] text-gray-600 hover:bg-gray-200'
                           }`
