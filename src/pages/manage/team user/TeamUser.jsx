@@ -7,9 +7,52 @@ import { teamManageApi } from '../../../services/teamManageApi'
 const PAGE_SIZE = 20
 
 const filterToApiValue = (filter) => {
-  if (filter === 'Yes') return 'true'
-  if (filter === 'No') return 'false'
+  if (filter === 'Yes') return 'yes'
+  if (filter === 'No') return 'no'
   return undefined
+}
+
+const parseCsvText = (text) => {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  if (lines.length < 2) return []
+
+  const headerLine = lines[0].toLowerCase()
+  const headers = headerLine.split(/[,;\t]/).map((h) => h.replace(/["']/g, '').trim())
+
+  const nameIdx = headers.findIndex((h) => h === 'name' || h === 'full name' || h.includes('name'))
+  const firstNameIdx = headers.findIndex((h) => h === 'first name' || h === 'first')
+  const lastNameIdx = headers.findIndex((h) => h === 'last name' || h === 'last')
+  const emailIdx = headers.findIndex((h) => h === 'email' || h.includes('email') || h.includes('mail'))
+
+  const results = []
+  for (let i = 1; i < lines.length; i++) {
+    const row = lines[i].split(/[,;\t]/).map((c) => c.replace(/^["']|["']$/g, '').trim())
+    if (row.length <= 1 && !row[0]) continue
+
+    let name = ''
+    if (nameIdx !== -1 && row[nameIdx]) {
+      name = row[nameIdx]
+    } else if (firstNameIdx !== -1 && lastNameIdx !== -1) {
+      name = `${row[firstNameIdx] || ''} ${row[lastNameIdx] || ''}`.trim()
+    } else if (row[0]) {
+      name = row[0]
+    }
+
+    let email = ''
+    if (emailIdx !== -1 && row[emailIdx]) {
+      email = row[emailIdx]
+    } else if (row[1] && row[1].includes('@')) {
+      email = row[1]
+    } else {
+      const emailField = row.find((c) => c.includes('@'))
+      if (emailField) email = emailField
+    }
+
+    if (email) {
+      results.push({ name: name || email.split('@')[0], email })
+    }
+  }
+  return results
 }
 
 
@@ -72,6 +115,30 @@ const TeamUser = () => {
   const activeUser = useMemo(() => {
     return users.find((user) => user.id === activeUserId) || null
   }, [users, activeUserId])
+
+  const displayedUsers = useMemo(() => {
+    if (filter === 'Yes') {
+      return users.filter(
+        (user) =>
+          user.is_enrolled ||
+          user.enrolled_display === 'Yes' ||
+          String(user.enrolled).toLowerCase() === 'true' ||
+          String(user.is_enrolled).toLowerCase() === 'true' ||
+          String(user.enrolled).toLowerCase() === 'yes',
+      )
+    }
+    if (filter === 'No') {
+      return users.filter(
+        (user) =>
+          !user.is_enrolled &&
+          user.enrolled_display !== 'Yes' &&
+          String(user.enrolled).toLowerCase() !== 'true' &&
+          String(user.is_enrolled).toLowerCase() !== 'true' &&
+          String(user.enrolled).toLowerCase() !== 'yes',
+      )
+    }
+    return users
+  }, [users, filter])
 
   const totalUsers = pagination?.total_count ?? planStats?.total_in_list ?? users.length
   const totalPages = pagination?.total_pages ?? 1
@@ -139,11 +206,11 @@ const TeamUser = () => {
     }
   }
 
-  const isAllVisibleSelected = users.length > 0 && users.every((user) => selectedIds.includes(user.id))
+  const isAllVisibleSelected = displayedUsers.length > 0 && displayedUsers.every((user) => selectedIds.includes(user.id))
 
   const handleToggleSelectAll = (checked) => {
     if (checked) {
-      setSelectedIds(users.map((user) => user.id))
+      setSelectedIds(displayedUsers.map((user) => user.id))
     } else {
       setSelectedIds([])
       setActiveUserId(null)
@@ -267,10 +334,31 @@ const TeamUser = () => {
     setError('')
 
     try {
-      const response = await teamManageApi.importTeamUsers(accessToken, file)
-      setImportOpen(false)
-      showToast(response.message || `${response.added_count || 0} users imported successfully`)
-      await loadUsers()
+      // 1. Attempt direct backend file upload
+      let succeeded = false
+      try {
+        const response = await teamManageApi.importTeamUsers(accessToken, file)
+        setImportOpen(false)
+        showToast(response.message || `${response.added_count || 0} users imported successfully`)
+        await loadUsers()
+        succeeded = true
+      } catch (uploadErr) {
+        console.warn('Backend file import failed, trying client-side CSV parsing fallback:', uploadErr.message)
+      }
+
+      if (!succeeded) {
+        // 2. Client-side fallback: parse file text directly and batch add
+        const fileText = await file.text()
+        const parsedUsers = parseCsvText(fileText)
+        if (!parsedUsers.length) {
+          throw new Error('No valid users found in CSV. Please ensure your file has Name and Email columns.')
+        }
+
+        const response = await teamManageApi.addTeamUsers(accessToken, parsedUsers)
+        setImportOpen(false)
+        showToast(response.message || `${parsedUsers.length} users imported successfully`)
+        await loadUsers()
+      }
     } catch (err) {
       setError(err.message || 'Unable to import team users.')
     } finally {
@@ -387,14 +475,14 @@ const TeamUser = () => {
                       Loading team users...
                     </td>
                   </tr>
-                ) : users.length === 0 ? (
+                ) : displayedUsers.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-[#888]">
                       No team users found matching criteria.
                     </td>
                   </tr>
                 ) : (
-                  users.map((user) => {
+                  displayedUsers.map((user) => {
                     const isSelected = selectedIds.includes(user.id)
                     const isActive = activeUserId === user.id
                     return (

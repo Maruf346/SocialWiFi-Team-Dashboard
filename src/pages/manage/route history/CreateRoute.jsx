@@ -131,6 +131,42 @@ const CreateRoute = () => {
   const [showWaypointExamples, setShowWaypointExamples] = useState(false)
   const [highlightWaypointInput, setHighlightWaypointInput] = useState(false)
 
+  // Tutorial overlay modal state
+  const [showTutorialOverlay, setShowTutorialOverlay] = useState(() => {
+    try {
+      return localStorage.getItem('hideCreateRouteTutorial') !== 'true'
+    } catch {
+      return true
+    }
+  })
+  const [dontShowAgain, setDontShowAgain]             = useState(() => {
+    try {
+      return localStorage.getItem('hideCreateRouteTutorial') === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  const handleCloseTutorial = () => {
+    if (dontShowAgain) {
+      try {
+        localStorage.setItem('hideCreateRouteTutorial', 'true')
+      } catch { /* ignore */ }
+    }
+    setShowTutorialOverlay(false)
+  }
+
+  const handleToggleDontShow = (checked) => {
+    setDontShowAgain(checked)
+    try {
+      if (checked) {
+        localStorage.setItem('hideCreateRouteTutorial', 'true')
+      } else {
+        localStorage.removeItem('hideCreateRouteTutorial')
+      }
+    } catch { /* ignore */ }
+  }
+
   // Multi-permit workflow tracker
   // When addingPermit is non-null, Step 1 operates in "Add Permit N" mode
   const [addingPermit, setAddingPermit]             = useState(null)
@@ -638,30 +674,41 @@ const CreateRoute = () => {
           : `Create route – step ${step}`}
       </h1>
 
-      {/* Back link */}
-      <button
-        type="button"
-        onClick={() => {
-          if (addingPermit) {
-            setAddingPermit(null)
-            setStep(2)
-          } else if (step === 1) {
-            navigate(routeHistoryPath)
-          } else {
-            setStep(1)
-          }
-        }}
-        className="mb-5 inline-flex items-center gap-1 text-[13px] font-medium text-[#ff823d] cursor-pointer"
-      >
-        <span className="text-lg">&lt;</span>
-        <span>
-          {addingPermit
-            ? 'Cancel and return to route review'
-            : step === 1
-            ? "Driver's route history"
-            : 'Back to step 1'}
-        </span>
-      </button>
+      {/* Back link & Video Tutorial action */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            if (addingPermit) {
+              setAddingPermit(null)
+              setStep(2)
+            } else if (step === 1) {
+              navigate(routeHistoryPath)
+            } else {
+              setStep(1)
+            }
+          }}
+          className="inline-flex items-center gap-1 text-[13px] font-medium text-[#ff823d] cursor-pointer"
+        >
+          <span className="text-lg">&lt;</span>
+          <span>
+            {addingPermit
+              ? 'Cancel and return to route review'
+              : step === 1
+              ? "Driver's route history"
+              : 'Back to step 1'}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowTutorialOverlay(true)}
+          className="inline-flex items-center gap-1.5 rounded border border-[#ddd] bg-white px-2.5 py-1 text-[12px] font-medium text-[#555] shadow-xs hover:border-[#ff823d] hover:text-[#ff823d] cursor-pointer"
+        >
+          <span className="text-sm text-[#ff823d]">▶</span>
+          <span>Video Tutorial</span>
+        </button>
+      </div>
 
       <h2 className="mb-4 text-base font-bold text-[#111]">
         New Route for: <span className="font-bold">{driverName}</span>
@@ -674,14 +721,8 @@ const CreateRoute = () => {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3 items-start">
             {/* Column 1: Enter Route Name */}
             <div>
-              <label className="mb-1.5 flex items-center text-[14px] font-bold text-[#111]">
-                <span>Enter Route Name</span>
-                <span
-                  title="Enter a route name"
-                  className="ml-1.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-[2px] bg-[#606060] text-[10px] font-bold text-white select-none"
-                >
-                  ?
-                </span>
+              <label className="mb-1.5 block text-[14px] font-bold text-[#111]">
+                Enter Route Name
               </label>
               <input
                 type="text"
@@ -704,14 +745,8 @@ const CreateRoute = () => {
 
             {/* Column 2: Step 1 - Input Permit */}
             <div>
-              <label className="mb-1.5 flex items-center text-[14px] font-bold text-[#111]">
-                <span>{addingPermit ? `Import ${addingPermit.label}` : 'Step 1 - Input Permit'}</span>
-                <span
-                  title="Upload a permit document or type comma-separated waypoints"
-                  className="ml-1.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-[2px] bg-[#606060] text-[10px] font-bold text-white select-none"
-                >
-                  ?
-                </span>
+              <label className="mb-1.5 block text-[14px] font-bold text-[#111]">
+                {addingPermit ? `Import ${addingPermit.label}` : 'Step 1 - Input Permit'}
               </label>
 
               {/* Orange icon buttons */}
@@ -828,18 +863,10 @@ const CreateRoute = () => {
 
             {/* Column 3: Step 2 - Set Start and End Points */}
             <div>
-              <label className="mb-1.5 flex items-center text-[14px] font-bold text-[#111]">
-                <span>
-                  {addingPermit
-                    ? `Step 2 - Set End Point for ${addingPermit.label}`
-                    : 'Step 2 - Set Start and End Points'}
-                </span>
-                <span
-                  title="Enter location address or click on the map to set points"
-                  className="ml-1.5 inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-[2px] bg-[#606060] text-[10px] font-bold text-white select-none"
-                >
-                  ?
-                </span>
+              <label className="mb-1.5 block text-[14px] font-bold text-[#111]">
+                {addingPermit
+                  ? `Step 2 - Set End Point for ${addingPermit.label}`
+                  : 'Step 2 - Set Start and End Points'}
               </label>
 
               {/* If adding subsequent permit, Start Point is locked from previous permit */}
@@ -1242,6 +1269,61 @@ const CreateRoute = () => {
             >
               {isSaving ? 'SAVING...' : 'SAVE'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════ Video Tutorial Overlay Modal ═══════════════ */}
+      {showTutorialOverlay && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
+          onClick={handleCloseTutorial}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Build a Route for a Driver Tutorial"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-3xl rounded border-2 border-black bg-[#cfcfcf] p-4 shadow-2xl md:p-6"
+          >
+            {/* Top CLOSE link */}
+            <div className="mb-2.5">
+              <button
+                type="button"
+                onClick={handleCloseTutorial}
+                className="text-base font-bold text-black underline uppercase tracking-wide hover:text-[#eb7035] cursor-pointer"
+              >
+                CLOSE
+              </button>
+            </div>
+
+            {/* Embedded YouTube video (No autoplay) */}
+            <div className="relative w-full overflow-hidden rounded bg-black shadow-md aspect-video">
+              <iframe
+                src="https://www.youtube.com/embed/PCb9BEpqdF8?rel=0&autoplay=0"
+                title="Build a Route for a Driver - RightRoute Tutorial"
+                className="absolute inset-0 h-full w-full border-0"
+                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+
+            {/* Bottom checkbox */}
+            <div className="mt-3.5 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="dontShowAgainCheckbox"
+                checked={dontShowAgain}
+                onChange={(e) => handleToggleDontShow(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-600 text-[#eb7035] accent-[#eb7035] cursor-pointer"
+              />
+              <label
+                htmlFor="dontShowAgainCheckbox"
+                className="text-[13px] font-medium text-black cursor-pointer select-none"
+              >
+                Don&apos;t show this again.
+              </label>
+            </div>
           </div>
         </div>
       )}
