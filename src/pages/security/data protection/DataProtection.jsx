@@ -236,24 +236,11 @@ const DataProtection = () => {
             </div>
           )}
 
-          <div className="mt-6 space-y-5 text-[13px] leading-7 text-[#666]">
-            <p className="font-semibold text-[#555]">Definitions - please read carefully</p>
-
-            <div className="space-y-4">
-              {requestTypes.map((type) => (
-                <div key={type.key}>
-                  <p className="mb-1 font-semibold text-[#555]">{type.label}</p>
-                  <p>{type.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div className="mt-6 border-t border-[#d9d9d9] pt-4">
             <button
               type="submit"
               disabled={isSubmitting || isLoading}
-              className="w-full rounded bg-[#ff823d] px-4 py-2 text-[12px] font-semibold uppercase tracking-wide text-white shadow-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-w-28 rounded bg-[#ff823d] px-6 py-2 text-[12px] font-semibold uppercase tracking-wide text-white shadow-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? 'Submitting...' : 'Submit'}
             </button>
