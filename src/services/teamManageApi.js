@@ -77,6 +77,14 @@ export const teamManageApi = {
     })
   },
 
+  sendTeamUserInvites(token, memberIds) {
+    return apiRequest(`${MANAGE_BASE}/team-users/send-invite/`, {
+      method: 'POST',
+      token,
+      body: { member_ids: memberIds },
+    })
+  },
+
   importTeamUsers(token, file) {
     const formData = new FormData()
     formData.append('file', file)

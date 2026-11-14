@@ -1,81 +1,70 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { History, Pencil, Upload, X } from 'lucide-react'
+import { History, X } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { useAuth } from '../../../context/useAuth'
 import { teamManageApi } from '../../../services/teamManageApi'
 
 const PAGE_SIZE = 20
+const emptyUser = () => ({ id: crypto.randomUUID(), name: '', email: '' })
 
-const filterToApiValue = (filter) => {
-  if (filter === 'Yes') return 'yes'
-  if (filter === 'No') return 'no'
-  return undefined
+const filterToApiValue = (filter) => filter === 'Yes' ? 'yes' : filter === 'No' ? 'no' : undefined
+
+const splitCsvRow = (row) => {
+  const cells = []
+  let cell = ''
+  let quoted = false
+  for (let index = 0; index < row.length; index += 1) {
+    const character = row[index]
+    if (character === '"' && quoted && row[index + 1] === '"') {
+      cell += '"'
+      index += 1
+    } else if (character === '"') quoted = !quoted
+    else if (character === ',' && !quoted) {
+      cells.push(cell.trim())
+      cell = ''
+    } else cell += character
+  }
+  cells.push(cell.trim())
+  return cells
 }
 
 const parseCsvText = (text) => {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
-  if (lines.length < 2) return []
-
-  const headerLine = lines[0].toLowerCase()
-  const headers = headerLine.split(/[,;\t]/).map((h) => h.replace(/["']/g, '').trim())
-
-  const nameIdx = headers.findIndex((h) => h === 'name' || h === 'full name' || h.includes('name'))
-  const firstNameIdx = headers.findIndex((h) => h === 'first name' || h === 'first')
-  const lastNameIdx = headers.findIndex((h) => h === 'last name' || h === 'last')
-  const emailIdx = headers.findIndex((h) => h === 'email' || h.includes('email') || h.includes('mail'))
-
-  const results = []
-  for (let i = 1; i < lines.length; i++) {
-    const row = lines[i].split(/[,;\t]/).map((c) => c.replace(/^["']|["']$/g, '').trim())
-    if (row.length <= 1 && !row[0]) continue
-
-    let name = ''
-    if (nameIdx !== -1 && row[nameIdx]) {
-      name = row[nameIdx]
-    } else if (firstNameIdx !== -1 && lastNameIdx !== -1) {
-      name = `${row[firstNameIdx] || ''} ${row[lastNameIdx] || ''}`.trim()
-    } else if (row[0]) {
-      name = row[0]
-    }
-
-    let email = ''
-    if (emailIdx !== -1 && row[emailIdx]) {
-      email = row[emailIdx]
-    } else if (row[1] && row[1].includes('@')) {
-      email = row[1]
-    } else {
-      const emailField = row.find((c) => c.includes('@'))
-      if (emailField) email = emailField
-    }
-
-    if (email) {
-      results.push({ name: name || email.split('@')[0], email })
-    }
-  }
-  return results
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.trim())
+  if (!lines.length) return []
+  const firstRow = splitCsvRow(lines[0])
+  const headers = firstRow.map((header) => header.toLowerCase().trim())
+  const hasHeaders = headers.some((header) => header.includes('name') || header.includes('mail'))
+  const nameIndex = headers.findIndex((header) => ['name', 'full name', 'first last name'].includes(header))
+  const firstNameIndex = headers.findIndex((header) => ['first', 'first name', 'firstname'].includes(header))
+  const lastNameIndex = headers.findIndex((header) => ['last', 'last name', 'lastname'].includes(header))
+  const emailIndex = headers.findIndex((header) => ['email', 'email address', 'e-mail'].includes(header))
+  return (hasHeaders ? lines.slice(1) : lines).map(splitCsvRow).map((row) => {
+    const emailCellIndex = emailIndex >= 0 ? emailIndex : row.findIndex((cell) => cell.includes('@'))
+    const email = emailCellIndex >= 0 ? row[emailCellIndex]?.trim() : ''
+    let name = nameIndex >= 0 ? row[nameIndex]?.trim() : ''
+    if (!name && firstNameIndex >= 0) name = `${row[firstNameIndex] || ''} ${lastNameIndex >= 0 ? row[lastNameIndex] || '' : ''}`.trim()
+    if (!name) name = row.find((cell, index) => index !== emailCellIndex && cell.trim())?.trim() || ''
+    return { id: crypto.randomUUID(), name, email }
+  }).filter((user) => user.name || user.email)
 }
-
 
 const getRouteHistoryPath = (user) => {
   const params = new URLSearchParams()
-  const driverUserId = user.user_id || user.id
-
-  if (driverUserId) params.set('user_id', driverUserId)
+  const id = user.user_id || user.id
+  if (id) params.set('user_id', id)
   if (user.name) params.set('driver_name', user.name)
   if (user.email) params.set('user_email', user.email)
-
-  const query = params.toString()
-  return `/dashboard/manage/team-route-history${query ? `?${query}` : ''}`
+  return `/dashboard/manage/team-route-history?${params.toString()}`
 }
-const downloadFile = (content, filename) => {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
+
+const downloadFile = (content) => {
+  const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8;' }))
   const link = document.createElement('a')
   link.href = url
-  link.download = filename
+  link.download = 'team_users_export.csv'
   document.body.appendChild(link)
   link.click()
-  document.body.removeChild(link)
+  link.remove()
   URL.revokeObjectURL(url)
 }
 
@@ -83,708 +72,222 @@ const TeamUser = () => {
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
   const { accessToken } = useAuth()
-
   const [users, setUsers] = useState([])
   const [planStats, setPlanStats] = useState(null)
   const [pagination, setPagination] = useState(null)
   const [selectedIds, setSelectedIds] = useState([])
   const [activeUserId, setActiveUserId] = useState(null)
-
+  const [entryRows, setEntryRows] = useState([emptyUser()])
   const [filterInput, setFilterInput] = useState('All')
   const [filter, setFilter] = useState('All')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-
-  const [importOpen, setImportOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
 
-  const [addFormData, setAddFormData] = useState({
-    name: '',
-    email: '',
-  })
-
-  const [editFormData, setEditFormData] = useState({
-    name: '',
-    email: '',
-  })
-
-  const activeUser = useMemo(() => {
-    return users.find((user) => user.id === activeUserId) || null
-  }, [users, activeUserId])
-
-  const displayedUsers = useMemo(() => {
-    if (filter === 'Yes') {
-      return users.filter(
-        (user) =>
-          user.is_enrolled ||
-          user.enrolled_display === 'Yes' ||
-          String(user.enrolled).toLowerCase() === 'true' ||
-          String(user.is_enrolled).toLowerCase() === 'true' ||
-          String(user.enrolled).toLowerCase() === 'yes',
-      )
-    }
-    if (filter === 'No') {
-      return users.filter(
-        (user) =>
-          !user.is_enrolled &&
-          user.enrolled_display !== 'Yes' &&
-          String(user.enrolled).toLowerCase() !== 'true' &&
-          String(user.is_enrolled).toLowerCase() !== 'true' &&
-          String(user.enrolled).toLowerCase() !== 'yes',
-      )
-    }
-    return users
-  }, [users, filter])
-
+  const displayedUsers = useMemo(() => [...users].sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })), [users])
+  const activeUser = useMemo(() => users.find((user) => user.id === activeUserId) || null, [users, activeUserId])
   const totalUsers = pagination?.total_count ?? planStats?.total_in_list ?? users.length
   const totalPages = pagination?.total_pages ?? 1
-  const maxMembers = planStats?.max_members ?? 'Not available'
+  const maxMembers = planStats?.max_members ?? '—'
   const enrolledTotal = planStats?.enrolled_count ?? users.filter((user) => user.is_enrolled).length
-  const slotsRemaining = planStats?.slots_remaining ?? 'Not available'
+  const slotsRemaining = planStats?.slots_remaining ?? '—'
+  const allVisibleSelected = displayedUsers.length > 0 && displayedUsers.every((user) => selectedIds.includes(user.id))
 
   const showToast = (message) => {
     setToastMessage(message)
-    setTimeout(() => setToastMessage(''), 2500)
+    window.setTimeout(() => setToastMessage(''), 2500)
+  }
+  const resetEntryPanel = () => {
+    setActiveUserId(null)
+    setEntryRows([emptyUser()])
   }
 
   const loadUsers = useCallback(async (signal) => {
     if (!accessToken) return
-
     setIsLoading(true)
     setError('')
-
     try {
-      const data = await teamManageApi.listTeamUsers(
-        accessToken,
-        {
-          page: currentPage,
-          page_size: PAGE_SIZE,
-          search,
-          enrolled: filterToApiValue(filter),
-        },
-        { signal },
-      )
-
+      const data = await teamManageApi.listTeamUsers(accessToken, {
+        page: currentPage, page_size: PAGE_SIZE, search,
+        enrolled: filterToApiValue(filter), ordering: 'first_name',
+      }, { signal })
       setUsers(Array.isArray(data.results) ? data.results : [])
       setPlanStats(data.plan_stats || null)
       setPagination(data.pagination || null)
       setSelectedIds([])
-      setActiveUserId(null)
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        setError(err.message || 'Unable to load team users.')
-      }
-    } finally {
-      setIsLoading(false)
-    }
+    } catch (loadError) {
+      if (loadError.name !== 'AbortError') setError(loadError.message || 'Unable to load team users.')
+    } finally { setIsLoading(false) }
   }, [accessToken, currentPage, filter, search])
 
   useEffect(() => {
     const controller = new AbortController()
-    const timeoutId = window.setTimeout(() => {
-      loadUsers(controller.signal)
-    }, 0)
-
+    const timeoutId = window.setTimeout(() => loadUsers(controller.signal), 0)
     return () => {
       window.clearTimeout(timeoutId)
       controller.abort()
     }
   }, [loadUsers])
 
-  const handleSelectUser = (user) => {
+  const openUserForEdit = (user) => {
     setActiveUserId(user.id)
-    setEditFormData({
-      name: user.name || '',
-      email: user.email || '',
-    })
-    if (!selectedIds.includes(user.id)) {
-      setSelectedIds([user.id])
-    }
+    setEntryRows([{ id: user.id, name: user.name || '', email: user.email || '' }])
   }
-
-  const isAllVisibleSelected = displayedUsers.length > 0 && displayedUsers.every((user) => selectedIds.includes(user.id))
-
-  const handleToggleSelectAll = (checked) => {
-    if (checked) {
-      setSelectedIds(displayedUsers.map((user) => user.id))
-    } else {
-      setSelectedIds([])
-      setActiveUserId(null)
-    }
-  }
-
-  const handleToggleSelectRow = (id, event) => {
-    event.stopPropagation()
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-    )
+  const updateEntry = (id, field, value) => setEntryRows((rows) => rows.map((row) => row.id === id ? { ...row, [field]: value } : row))
+  const removeEntry = (id) => {
+    if (activeUserId) return resetEntryPanel()
+    setEntryRows((rows) => rows.length === 1 ? [emptyUser()] : rows.filter((row) => row.id !== id))
   }
 
   const handleDelete = async () => {
-    if (selectedIds.length === 0) {
-      showToast('No users selected to delete')
-      return
-    }
-
-    setIsSaving(true)
-    setError('')
-
+    if (!selectedIds.length) return showToast('Select at least one user to remove')
+    setIsSaving(true); setError('')
     try {
       await teamManageApi.removeTeamUsers(accessToken, selectedIds)
-      showToast('Selected users removed successfully')
+      showToast('Selected users removed')
       await loadUsers()
-    } catch (err) {
-      setError(err.message || 'Unable to remove selected users.')
-    } finally {
-      setIsSaving(false)
-    }
+    } catch (saveError) { setError(saveError.message || 'Unable to remove selected users.') }
+    finally { setIsSaving(false) }
   }
 
   const handleDownload = async () => {
-    setIsSaving(true)
-    setError('')
-
+    setIsSaving(true); setError('')
     try {
       const result = await teamManageApi.downloadTeamUsers(accessToken)
-      const content = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
-      downloadFile(content, 'team_users_export.csv')
+      downloadFile(typeof result === 'string' ? result : JSON.stringify(result, null, 2))
       showToast('User list downloaded')
-    } catch (err) {
-      setError(err.message || 'Unable to download team users.')
-    } finally {
-      setIsSaving(false)
-    }
+    } catch (downloadError) { setError(downloadError.message || 'Unable to download team users.') }
+    finally { setIsSaving(false) }
   }
 
-  const handleCancel = () => {
-    setFilterInput('All')
-    setFilter('All')
-    setSearchInput('')
-    setSearch('')
-    setSelectedIds([])
-    setActiveUserId(null)
-    setCurrentPage(1)
-    showToast('Selection and filters reset')
+  const handleListCancel = () => {
+    setFilterInput('All'); setFilter('All'); setSearchInput(''); setSearch('')
+    setSelectedIds([]); setCurrentPage(1)
   }
 
-  const handleAddUser = async (event) => {
-    event.preventDefault()
-    if (!addFormData.name.trim() || !addFormData.email.trim()) {
-      showToast('Please provide both name and email')
-      return
-    }
-
-    setIsSaving(true)
-    setError('')
-
+  const handleSendInvites = async () => {
+    if (!selectedIds.length) return showToast('Select at least one user to invite')
+    setIsSaving(true); setError('')
     try {
-      const response = await teamManageApi.addTeamUsers(accessToken, [
-        {
-          name: addFormData.name.trim(),
-          email: addFormData.email.trim(),
-        },
-      ])
-      setAddFormData({ name: '', email: '' })
-      showToast(response.message || 'Invitation sent and user added successfully')
+      const response = await teamManageApi.sendTeamUserInvites(accessToken, selectedIds)
+      showToast(response?.message || `Invite${selectedIds.length === 1 ? '' : 's'} sent`)
       await loadUsers()
-    } catch (err) {
-      setError(err.message || 'Unable to add team user.')
-    } finally {
-      setIsSaving(false)
-    }
+    } catch (inviteError) { setError(inviteError.message || 'Unable to send invitations.') }
+    finally { setIsSaving(false) }
   }
 
-  const handleSaveUserInfo = async (event) => {
-    event.preventDefault()
-    if (!activeUser) return
-
-    setIsSaving(true)
-    setError('')
-
+  const handleSubmitEntries = async () => {
+    const prepared = entryRows.map(({ name, email }) => ({ name: name.trim(), email: email.trim() }))
+    if (prepared.some((user) => !user.name || !user.email)) return showToast('Every row needs a name and email')
+    setIsSaving(true); setError('')
     try {
-      await teamManageApi.updateTeamUser(accessToken, activeUser.id, {
-        name: editFormData.name.trim(),
-        email: editFormData.email.trim(),
-      })
-      showToast('User details saved successfully')
+      if (activeUser) {
+        await teamManageApi.updateTeamUser(accessToken, activeUser.id, prepared[0])
+        showToast('User details saved')
+      } else {
+        const response = await teamManageApi.addTeamUsers(accessToken, prepared)
+        showToast(response?.message || `${prepared.length} user${prepared.length === 1 ? '' : 's'} added`)
+      }
+      resetEntryPanel()
       await loadUsers()
-    } catch (err) {
-      setError(err.message || 'Unable to save user details.')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const handleCancelUserInfo = () => {
-    setActiveUserId(null)
-    setSelectedIds([])
-    showToast('Closed edit mode')
+    } catch (saveError) { setError(saveError.message || `Unable to ${activeUser ? 'save' : 'add'} team users.`) }
+    finally { setIsSaving(false) }
   }
 
   const handleImportCsv = async (event) => {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
-
-    setIsSaving(true)
     setError('')
-
     try {
-      // 1. Attempt direct backend file upload
-      let succeeded = false
-      try {
-        const response = await teamManageApi.importTeamUsers(accessToken, file)
-        setImportOpen(false)
-        showToast(response.message || `${response.added_count || 0} users imported successfully`)
-        await loadUsers()
-        succeeded = true
-      } catch (uploadErr) {
-        console.warn('Backend file import failed, trying client-side CSV parsing fallback:', uploadErr.message)
-      }
-
-      if (!succeeded) {
-        // 2. Client-side fallback: parse file text directly and batch add
-        const fileText = await file.text()
-        const parsedUsers = parseCsvText(fileText)
-        if (!parsedUsers.length) {
-          throw new Error('No valid users found in CSV. Please ensure your file has Name and Email columns.')
-        }
-
-        const response = await teamManageApi.addTeamUsers(accessToken, parsedUsers)
-        setImportOpen(false)
-        showToast(response.message || `${parsedUsers.length} users imported successfully`)
-        await loadUsers()
-      }
-    } catch (err) {
-      setError(err.message || 'Unable to import team users.')
-    } finally {
-      setIsSaving(false)
-    }
+      const imported = parseCsvText(await file.text())
+      if (!imported.length) throw new Error('No users found. Use CSV columns named Name and Email.')
+      setActiveUserId(null)
+      setEntryRows(imported)
+      showToast(`${imported.length} user${imported.length === 1 ? '' : 's'} ready to add`)
+    } catch (importError) { setError(importError.message || 'Unable to read the CSV file.') }
   }
 
-  const applyFilter = () => {
-    setCurrentPage(1)
-    setFilter(filterInput)
-  }
-
-  const applySearch = () => {
-    setCurrentPage(1)
-    setSearch(searchInput.trim())
-  }
+  const applySearch = () => { setCurrentPage(1); setSearch(searchInput.trim()) }
 
   return (
-    <main className="team-users-page min-h-full px-2 py-2 text-[#888] md:px-10 md:py-4">
-      {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 rounded bg-[#151d56] px-4 py-2.5 text-sm text-white shadow-lg transition-all">
-          {toastMessage}
-        </div>
-      )}
-
-      <h1 className="mb-4 text-xl font-normal text-[#999] md:text-2xl">
-        Manage team users
-      </h1>
-
-      <div className="mb-4 space-y-0.5 text-xs font-bold text-[#333]">
-        <p>Plan: Up to {maxMembers} users</p>
-        <p>Total in list: {totalUsers}</p>
-        <p>Enrolled user total: {enrolledTotal}</p>
-        <p>Slots remaining: {slotsRemaining}</p>
+    <main className="min-h-full px-1 py-1 text-[11px] text-[#777] sm:px-3 lg:px-5">
+      {toastMessage && <div className="fixed bottom-5 right-5 z-50 rounded bg-[#202060] px-4 py-2 text-xs text-white shadow-lg">{toastMessage}</div>}
+      <h1 className="mb-4 text-[18px] font-normal text-[#999]">Manage team users</h1>
+      <div className="mb-3 leading-[17px] font-semibold text-[#202020]">
+        <p>Plan: Up to {maxMembers} users</p><p>Total in list: {totalUsers}</p><p>Enrolled user total: {enrolledTotal}</p><p>Slots remaining: {slotsRemaining}</p>
       </div>
+      {error && <div role="alert" className="mb-3 border border-red-200 bg-red-50 px-3 py-2 text-red-700">{error}</div>}
 
-      {error && (
-        <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-7 xl:grid-cols-[1.75fr_0.9fr] 2xl:grid-cols-[1.85fr_0.9fr]">
-        <section className="flex flex-col min-w-0">
-          <div className="mb-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(570px,1.35fr)_minmax(390px,1fr)]">
+        <section className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-1.5">
-              <span className="text-[#666]">Filter:</span>
-              <select
-                value={filterInput}
-                onChange={(event) => setFilterInput(event.target.value)}
-                className="h-6 rounded border border-[#ccc] bg-white px-1 text-xs outline-none"
-              >
-                <option value="All">All</option>
-                <option value="Yes">Enrolled (Yes)</option>
-                <option value="No">Not Enrolled (No)</option>
-              </select>
-              <button
-                type="button"
-                onClick={applyFilter}
-                className="h-6 rounded border border-[#ccc] bg-[#efefef] px-2.5 text-xs font-normal text-[#333] hover:bg-[#e4e4e4] active:bg-[#d5d5d5] cursor-pointer"
-              >
-                Go
-              </button>
+              <label htmlFor="team-user-filter">Filter:</label>
+              <select id="team-user-filter" value={filterInput} onChange={(event) => setFilterInput(event.target.value)} className="h-6 w-28 border border-[#cfcfcf] bg-white px-1 outline-none"><option value="All">All</option><option value="Yes">Enrolled</option><option value="No">Not enrolled</option></select>
+              <button type="button" onClick={() => { setCurrentPage(1); setFilter(filterInput) }} className="h-6 border border-[#ccc] bg-[#eee] px-2 hover:bg-[#e3e3e3]">Go</button>
             </div>
-
             <div className="flex items-center gap-1.5">
-              <span className="text-[#666]">Search:</span>
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                onKeyDown={(event) => event.key === 'Enter' && applySearch()}
-                placeholder="Search by name or email"
-                className="h-6 w-36 rounded border border-[#ccc] bg-white px-2 text-xs outline-none md:w-44"
-              />
-              <button
-                type="button"
-                onClick={applySearch}
-                className="h-6 rounded border border-[#ccc] bg-[#efefef] px-2.5 text-xs font-normal text-[#333] hover:bg-[#e4e4e4] active:bg-[#d5d5d5] cursor-pointer"
-              >
-                Go
-              </button>
+              <label htmlFor="team-user-search">Search:</label>
+              <input id="team-user-search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && applySearch()} className="h-6 w-44 border border-[#cfcfcf] px-2 outline-none" />
+              <button type="button" onClick={applySearch} className="h-6 border border-[#ccc] bg-[#eee] px-2 hover:bg-[#e3e3e3]">Go</button>
             </div>
           </div>
-
-          <div className="overflow-x-auto border border-[#eee]">
-            <table className="w-full min-w-[620px] border-collapse text-left text-xs">
-              <thead>
-                <tr className="h-8 border-b border-[#eee] bg-[#f3f3f3] uppercase text-[#888] font-normal">
-                  <th className="w-8 px-2 text-center">
-                    <input
-                      type="checkbox"
-                      checked={isAllVisibleSelected}
-                      onChange={(event) => handleToggleSelectAll(event.target.checked)}
-                      className="cursor-pointer accent-[#ff823d]"
-                      aria-label="Select all team users"
-                    />
-                  </th>
-                  <th className="px-3 py-1 font-semibold tracking-wider">NAME</th>
-                  <th className="px-3 py-1 font-semibold tracking-wider">EMAIL</th>
-                  <th className="px-3 py-1 font-semibold tracking-wider">ENROLLED</th>
-                  <th className="w-20 px-4 py-1 text-center font-semibold tracking-wider">
-                    EDIT/<br className="sm:hidden" />VIEW
-                  </th>
-                  <th className="w-28 px-4 py-1 text-center font-semibold tracking-wider">
-                    ROUTE <br className="sm:hidden" />HISTORY
-                  </th>
+          <div className="min-h-[488px] overflow-x-auto border border-[#e4e4e4] bg-white">
+            <table className="w-full min-w-[565px] border-collapse text-left">
+              <thead className="bg-[#f2f2f2] text-[10px] uppercase text-[#999]"><tr className="h-8 border-b border-[#ddd]">
+                <th className="w-8 text-center"><input type="checkbox" checked={allVisibleSelected} onChange={(event) => setSelectedIds(event.target.checked ? displayedUsers.map((user) => user.id) : [])} className="accent-[#f28a43]" aria-label="Select all team users" /></th>
+                <th className="px-2 font-semibold">Name</th><th className="px-2 font-semibold">Email</th><th className="px-2 font-semibold">Enrolled</th><th className="w-16 px-2 text-center font-semibold">Route<br />history</th>
+              </tr></thead>
+              <tbody>{isLoading ? <tr><td colSpan="5" className="py-10 text-center">Loading team users…</td></tr> : displayedUsers.length === 0 ? <tr><td colSpan="5" className="py-10 text-center">No team users found.</td></tr> : displayedUsers.map((user) => {
+                const selected = selectedIds.includes(user.id)
+                return <tr key={user.id} className={`h-[29px] border-b border-[#e8e8e8] ${selected ? 'bg-[#fff3eb]' : 'even:bg-[#f7f7f7]'}`}>
+                  <td className="text-center"><input type="checkbox" checked={selected} onChange={() => setSelectedIds((ids) => ids.includes(user.id) ? ids.filter((id) => id !== user.id) : [...ids, user.id])} className="accent-[#f28a43]" aria-label={`Select ${user.name}`} /></td>
+                  <td className="px-2"><button type="button" onClick={() => openUserForEdit(user)} className="text-left text-[#666] hover:text-[#ef7d36] hover:underline">{user.name}</button></td>
+                  <td className="px-2">{user.email}</td><td className="px-2">{user.enrolled_display || (user.is_enrolled ? 'Yes' : 'No')}</td>
+                  <td className="text-center"><button type="button" onClick={() => navigate(getRouteHistoryPath(user))} className="inline-flex text-[#999] hover:text-[#ef7d36]" aria-label={`Route history for ${user.name}`}><History size={17} /></button></td>
                 </tr>
-              </thead>
-              <tbody>
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-[#888]">
-                      Loading team users...
-                    </td>
-                  </tr>
-                ) : displayedUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-[#888]">
-                      No team users found matching criteria.
-                    </td>
-                  </tr>
-                ) : (
-                  displayedUsers.map((user) => {
-                    const isSelected = selectedIds.includes(user.id)
-                    const isActive = activeUserId === user.id
-                    return (
-                      <tr
-                        key={user.id}
-                        onClick={() => handleSelectUser(user)}
-                        className={`h-8 border-b border-[#f0f0f0] cursor-pointer transition-colors ${
-                          isActive
-                            ? 'bg-[#fff3eb]'
-                            : isSelected
-                            ? 'bg-[#fef8f4]'
-                            : 'even:bg-[#f9f9f9] hover:bg-[#f5f5f5]'
-                        }`}
-                      >
-                        <td className="px-2 text-center" onClick={(event) => event.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(event) => handleToggleSelectRow(user.id, event)}
-                            className="cursor-pointer accent-[#ff823d]"
-                            aria-label={`Select ${user.name}`}
-                          />
-                        </td>
-                        <td className="px-3 py-1 font-normal text-[#444] whitespace-nowrap">
-                          {user.name}
-                        </td>
-                        <td className="px-3 py-1 text-[#666] whitespace-nowrap">
-                          {user.email}
-                        </td>
-                        <td className="px-3 py-1 text-[#666] whitespace-nowrap">
-                          {user.enrolled_display || (user.is_enrolled ? 'Yes' : 'No')}
-                        </td>
-                        <td className="px-4 py-1 text-center" onClick={(event) => event.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectUser(user)}
-                            className="text-[#777] hover:text-[#ff823d] p-0.5 cursor-pointer inline-flex items-center justify-center"
-                            aria-label={`Edit ${user.name}`}
-                          >
-                            <Pencil size={15} />
-                          </button>
-                        </td>
-                        <td className="px-4 py-1 text-center" onClick={(event) => event.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => navigate(getRouteHistoryPath(user))}
-                            className="text-[#777] hover:text-[#ff823d] p-0.5 cursor-pointer inline-flex items-center justify-center"
-                            aria-label={`Route history for ${user.name}`}
-                          >
-                            <History size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
+              })}</tbody>
             </table>
           </div>
-
-          <div className="flex flex-wrap items-center justify-between border-b border-[#eee] py-2 text-xs text-[#777]">
-            <span>{selectedIds.length} of {totalUsers} selected</span>
-            <span>Page {currentPage} of {totalPages}</span>
-            <div className="flex items-center gap-1.5 underline cursor-pointer">
-              <button
-                type="button"
-                disabled={!pagination?.has_previous || isLoading}
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                className="hover:text-black cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Previous
-              </button>
-              <span className="px-0.5 font-bold text-black">{currentPage}</span>
-              <button
-                type="button"
-                disabled={!pagination?.has_next || isLoading}
-                onClick={() => setCurrentPage((page) => page + 1)}
-                className="hover:text-black cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
+          <div className="flex items-center justify-between py-2">
+            <span>{selectedIds.length} of {totalUsers} selected</span><span>{totalUsers ? Math.min((currentPage - 1) * PAGE_SIZE + 1, totalUsers) : 0}-{Math.min(currentPage * PAGE_SIZE, totalUsers)} of {totalUsers} users</span>
+            <div className="flex gap-2"><button type="button" disabled={!pagination?.has_previous || isLoading} onClick={() => setCurrentPage((page) => page - 1)} className="underline disabled:opacity-40">Previous</button><span>{currentPage}</span><span>of {totalPages}</span><button type="button" disabled={!pagination?.has_next || isLoading} onClick={() => setCurrentPage((page) => page + 1)} className="underline disabled:opacity-40">Next</button></div>
           </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2.5 rounded-lg border border-[#e7e7e7] bg-[#fafafa] p-2.5">
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={isSaving}
-              className="rounded bg-[#ff823d] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#e56f2d] disabled:opacity-60 cursor-pointer"
-            >
-              DELETE
-            </button>
-            <button
-              type="button"
-              onClick={handleDownload}
-              disabled={isSaving}
-              className="rounded bg-[#151d56] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0e143d] disabled:opacity-60 cursor-pointer"
-            >
-              DOWNLOAD
-            </button>
-            <button
-              type="button"
-              onClick={handleCancel}
-              disabled={isSaving}
-              className="rounded bg-[#151d56] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0e143d] disabled:opacity-60 cursor-pointer"
-            >
-              CANCEL
-            </button>
+          <div className="mt-4 flex flex-wrap gap-2 rounded-lg border border-[#e7e7e7] bg-[#fafafa] p-3">
+            <button type="button" onClick={handleDelete} disabled={isSaving} className="rounded bg-[#f18a43] px-4 py-2 font-medium text-white disabled:opacity-50">REMOVE</button>
+            <button type="button" onClick={handleDownload} disabled={isSaving} className="rounded bg-[#232064] px-4 py-2 font-medium text-white disabled:opacity-50">DOWNLOAD</button>
+            <button type="button" onClick={handleListCancel} disabled={isSaving} className="rounded bg-[#232064] px-4 py-2 font-medium text-white disabled:opacity-50">CANCEL</button>
+            <button type="button" onClick={handleSendInvites} disabled={isSaving || !selectedIds.length} className="rounded bg-[#f18a43] px-4 py-2 font-medium text-white disabled:opacity-50">SEND INVITE</button>
           </div>
         </section>
 
-        <section className="flex flex-col min-w-0">
-          <div className="mb-2 text-xs font-bold uppercase tracking-wider text-[#999]">
-            {activeUser ? 'ADD/EDIT USER' : 'ADD/EDIT USERS'}
+        <section className="min-w-0">
+          <div className="mb-2 flex h-6 items-center justify-between font-semibold text-[#333]">
+            <span>{activeUser ? 'EDIT USER' : 'ADD/EDIT USERS'}</span>
+            {!activeUser && <button type="button" onClick={() => setEntryRows((rows) => [...rows, emptyUser()])} className="rounded border border-[#bbb] bg-[#eee] px-2 py-1 text-[10px] font-normal text-[#777] hover:bg-[#e4e4e4]">Add Field</button>}
           </div>
-
-          <div className="flex-1 overflow-y-auto border border-[#ccc] bg-white p-3.5 min-h-[380px] max-h-[610px] text-xs space-y-3">
-            <div className="border border-[#e2e2e2] bg-[#f8f8f8] px-3 py-2 rounded-sm">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-[#555]">
-                TYPE OR IMPORT USERS: FIRST LAST NAME, EMAIL
-              </p>
-            </div>
-
-            {activeUser ? (
-              <form onSubmit={handleSaveUserInfo} id="teamUserEditForm" className="space-y-3 text-[#555]">
-                <h2 className="text-sm font-bold text-[#222]">
-                  Edit: {activeUser.name}
-                </h2>
-
-                <div className="flex flex-col gap-1">
-                  <label className="font-bold text-[#333]">Name:</label>
-                  <input
-                    type="text"
-                    value={editFormData.name}
-                    onChange={(event) => setEditFormData({ ...editFormData, name: event.target.value })}
-                    className="h-7 w-full rounded-sm border border-[#ccc] px-2 text-xs text-[#444] outline-none focus:border-[#ff823d]"
-                    required
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="font-bold text-[#333]">Email:</label>
-                  <input
-                    type="email"
-                    value={editFormData.email}
-                    onChange={(event) => setEditFormData({ ...editFormData, email: event.target.value })}
-                    className="h-7 w-full rounded-sm border border-[#ccc] px-2 text-xs text-[#444] outline-none focus:border-[#ff823d]"
-                    required
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <label className="font-bold text-[#333]">Enrolled:</label>
-                  <span>{activeUser.is_enrolled ? 'Yes (Enrolled)' : 'No (Not enrolled)'}</span>
-                </div>
-              </form>
-            ) : (
-              <form onSubmit={handleAddUser} id="teamUserAddForm" className="space-y-3 text-[#555]">
-                <h2 className="text-sm font-bold text-[#222]">
-                  Add New Team User
-                </h2>
-
-                <div className="flex flex-col gap-1">
-                  <label className="font-bold text-[#333]">First & Last Name:</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. John Doe"
-                    value={addFormData.name}
-                    onChange={(event) => setAddFormData({ ...addFormData, name: event.target.value })}
-                    className="h-7 w-full rounded-sm border border-[#ccc] px-2 text-xs text-[#444] outline-none focus:border-[#ff823d]"
-                    required
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="font-bold text-[#333]">Email Address:</label>
-                  <input
-                    type="email"
-                    placeholder="e.g. johndoe@company.com"
-                    value={addFormData.email}
-                    onChange={(event) => setAddFormData({ ...addFormData, email: event.target.value })}
-                    className="h-7 w-full rounded-sm border border-[#ccc] px-2 text-xs text-[#444] outline-none focus:border-[#ff823d]"
-                    required
-                  />
-                </div>
-              </form>
-            )}
+          <div className="h-[488px] overflow-y-auto border border-[#dedede] bg-white p-3">
+            <p className="mb-4 text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">TYPE OR IMPORT USERS: FIRST LAST NAME, EMAIL</p>
+            <div className="space-y-2">{entryRows.map((row) => <div key={row.id} className="grid grid-cols-[minmax(120px,0.9fr)_minmax(170px,1.2fr)_18px] items-center gap-2">
+              <input type="text" value={row.name} onChange={(event) => updateEntry(row.id, 'name', event.target.value)} placeholder="First Last Name" className="h-7 rounded-lg border border-[#ccc] px-3 outline-none focus:border-[#ef7d36]" />
+              <input type="email" value={row.email} onChange={(event) => updateEntry(row.id, 'email', event.target.value)} placeholder="Email" className="h-7 rounded-lg border border-[#ccc] px-3 outline-none focus:border-[#ef7d36]" />
+              <button type="button" onClick={() => removeEntry(row.id)} className="text-red-600 hover:text-red-800" aria-label="Remove field"><X size={15} strokeWidth={3} /></button>
+            </div>)}</div>
           </div>
-
-          <div className="flex flex-wrap items-center justify-between border-b border-[#eee] py-2 text-xs text-[#777]">
-            <span>{slotsRemaining} users remaining</span>
-            <button
-              type="button"
-              onClick={() => navigate('/dashboard/manage/plan')}
-              className="text-[#1d2464] font-medium underline hover:text-[#ff823d] cursor-pointer"
-            >
-              Upgrade plan
-            </button>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2.5 rounded-lg border border-[#e7e7e7] bg-[#fafafa] p-2.5">
-            {activeUser ? (
-              <>
-                <button
-                  type="submit"
-                  form="teamUserEditForm"
-                  disabled={isSaving}
-                  className="rounded bg-[#ff823d] px-5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#e56f2d] disabled:opacity-60 cursor-pointer"
-                >
-                  SAVE
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancelUserInfo}
-                  disabled={isSaving}
-                  className="rounded bg-[#151d56] px-5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0e143d] disabled:opacity-60 cursor-pointer"
-                >
-                  CANCEL
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="submit"
-                  form="teamUserAddForm"
-                  disabled={isSaving}
-                  className="rounded bg-[#ff823d] px-5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#e56f2d] disabled:opacity-60 cursor-pointer"
-                >
-                  SEND INVITE
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setImportOpen(true)}
-                  disabled={isSaving}
-                  className="rounded bg-[#151d56] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0e143d] disabled:opacity-60 cursor-pointer flex items-center gap-1.5"
-                >
-                  <Upload size={13} />
-                  IMPORT
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAddFormData({ name: '', email: '' })}
-                  disabled={isSaving}
-                  className="rounded bg-[#666] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#555] disabled:opacity-60 cursor-pointer"
-                >
-                  CANCEL
-                </button>
-              </>
-            )}
+          <div className="flex items-center gap-1 border-b border-[#e8e8e8] py-2"><span>{slotsRemaining} of {maxMembers} total users remaining</span><button type="button" onClick={() => navigate('/dashboard/manage/plan')} className="underline hover:text-[#ef7d36]">Upgrade plan</button></div>
+          <div className="mt-4 flex gap-2 rounded-lg border border-[#e7e7e7] bg-[#fafafa] p-3">
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isSaving || Boolean(activeUser)} className="rounded bg-[#f18a43] px-4 py-2 font-medium text-white disabled:opacity-50">IMPORT</button>
+            <button type="button" onClick={handleSubmitEntries} disabled={isSaving} className="rounded bg-[#f18a43] px-5 py-2 font-medium text-white disabled:opacity-50">{activeUser ? 'SAVE' : 'ADD'}</button>
+            <button type="button" onClick={resetEntryPanel} disabled={isSaving} className="rounded bg-[#232064] px-4 py-2 font-medium text-white disabled:opacity-50">CANCEL</button>
+            <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={handleImportCsv} className="hidden" />
           </div>
         </section>
       </div>
-
-      {importOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="w-full max-w-sm rounded border border-[#ccc] bg-white p-5 shadow-lg"
-          >
-            <div className="mb-4 flex justify-between">
-              <h2 className="font-semibold text-[#444]">Import team users</h2>
-              <button
-                type="button"
-                onClick={() => setImportOpen(false)}
-                aria-label="Close import dialog"
-                className="text-[#666] hover:text-[#111] cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <p className="mb-4 text-xs text-[#666]">
-              Choose a CSV file containing name and email columns.
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 rounded bg-[#ff823d] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#e56f2d] cursor-pointer"
-              >
-                <Upload size={14} />
-                Choose CSV
-              </button>
-              <button
-                type="button"
-                onClick={() => setImportOpen(false)}
-                className="cursor-pointer rounded border border-[#bbb] px-3.5 py-1.5 text-xs font-semibold text-[#555] hover:bg-[#f0f0f0]"
-              >
-                Cancel
-              </button>
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,text/csv"
-              onChange={handleImportCsv}
-              className="hidden"
-            />
-          </div>
-        </div>
-      )}
     </main>
   )
 }
