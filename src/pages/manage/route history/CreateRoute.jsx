@@ -927,7 +927,7 @@ const CreateRoute = () => {
                 >
                   {settingPin === (addingPermit ? 'end' : locationTarget)
                     ? 'Click map to place pin...'
-                    : 'Or click map'}
+                    : 'Click here to place a pin'}
                 </button>
               </div>
 
