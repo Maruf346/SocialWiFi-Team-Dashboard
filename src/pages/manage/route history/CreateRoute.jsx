@@ -40,7 +40,10 @@ const makeCircleIcon = (color, label) =>
 
 const startIcon = makeCircleIcon('#22a651', 'S')
 const endIcon   = makeCircleIcon('#e53935', 'E')
-const pinIcon   = (n) => makeCircleIcon('#444', n)
+const pinIcon   = (n, selected = false) => makeCircleIcon(selected ? '#eb7035' : '#444', n)
+
+const STREET_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
+const STREET_TILE_ATTRIBUTION = 'Tiles &copy; Esri &mdash; Source: Esri, HERE, Garmin, USGS, Intermap, INCREMENT P, NRCAN, Esri Japan, METI, Esri China (Hong Kong), NOSTRA, &copy; OpenStreetMap contributors, and the GIS User Community'
 
 // ─── Helper: Interpolate realistic coordinates between two points ─────────────
 // Guarantees waypoints are strictly in the user's intended route region (e.g. Nebraska),
@@ -66,14 +69,25 @@ const MapClickHandler = ({ onMapClick }) => {
   return null
 }
 
-// ─── Map view syncer (inner component) ───────────────────────────────────────
-const MapCenterSync = ({ center, shouldSync }) => {
+// Keeps the user's exact map center and zoom when map steps remount.
+const MapViewportTracker = ({ viewportRef }) => {
   const map = useMap()
+
   useEffect(() => {
-    if (shouldSync && center && center.length === 2) {
-      map.setView(center, 13)
-    }
-  }, [center, shouldSync, map])
+    const savedViewport = viewportRef.current
+    if (savedViewport) map.setView(savedViewport.center, savedViewport.zoom, { animate: false })
+  }, [map, viewportRef])
+
+  useMapEvents({
+    moveend: (event) => {
+      const center = event.target.getCenter()
+      viewportRef.current = {
+        center: [center.lat, center.lng],
+        zoom: event.target.getZoom(),
+      }
+    },
+  })
+
   return null
 }
 
@@ -174,21 +188,24 @@ const CreateRoute = () => {
   // Step 2 state: multi-permit container
   const [permits, setPermits]                       = useState([])
   const [routePath, setRoutePath]                   = useState([])
+  const [selectedWaypoint, setSelectedWaypoint]     = useState(null)
 
   const fileInputRef              = useRef(null)
   const waypointHelpRef           = useRef(null)
   const waypointHighlightTimerRef = useRef(null)
   const mapRef                    = useRef(null)
-
-  // Flag to auto-fit bounds ONCE upon transitioning to Step 2
-  // Subsequent pin deletions/additions will NOT trigger fitBounds, preserving zoom level!
-  const shouldFitStep2Ref         = useRef(false)
+  const viewportRef               = useRef(null)
+  const startPointRef             = useRef(null)
 
   // Default map center (defaults to current user location, with fallback)
   const [defaultCenter, setDefaultCenter] = useState([41.589, -93.62])
-  const [hasDetectedLocation, setHasDetectedLocation] = useState(false)
+  const activeStartPoint = addingPermit?.startPoint || startPoint
 
-  // Fetch current user location on mount so map defaults to where the manager/user is located
+  useEffect(() => {
+    startPointRef.current = startPoint
+  }, [startPoint])
+
+  // Use current location only as the untouched map's initial view. Never snap back later.
   useEffect(() => {
     if (typeof window !== 'undefined' && 'geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -196,8 +213,7 @@ const CreateRoute = () => {
           const lat = position.coords.latitude
           const lng = position.coords.longitude
           setDefaultCenter([lat, lng])
-          setHasDetectedLocation(true)
-          if (mapRef.current && !startPoint) {
+          if (mapRef.current && !startPointRef.current && !viewportRef.current) {
             mapRef.current.setView([lat, lng], 13)
           }
         },
@@ -207,7 +223,16 @@ const CreateRoute = () => {
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
       )
     }
-  }, [startPoint])
+  }, [])
+
+  const rememberViewport = () => {
+    if (!mapRef.current) return
+    const center = mapRef.current.getCenter()
+    viewportRef.current = {
+      center: [center.lat, center.lng],
+      zoom: mapRef.current.getZoom(),
+    }
+  }
 
   const activeLocationInput = locationTarget === 'start' ? startInput : endInput
   const canContinue = addingPermit
@@ -250,30 +275,12 @@ const CreateRoute = () => {
     if (step !== 2) return
     const allPts = []
     if (startPoint) allPts.push(startPoint)
-    permits.forEach((p) => p.waypoints.forEach((w) => allPts.push({ lat: w.lat, lng: w.lng })))
-    if (endPoint) allPts.push(endPoint)
+    permits.forEach((permit) => {
+      permit.waypoints.forEach((waypoint) => allPts.push({ lat: waypoint.lat, lng: waypoint.lng }))
+      if (permit.endPoint) allPts.push(permit.endPoint)
+    })
     if (allPts.length >= 2) {
       fetchRoadPath(allPts).then(setRoutePath)
-    }
-  }, [step, startPoint, endPoint, permits])
-
-  // ── Fit map to all markers ONLY on initial entry to Step 2 ─────────────────
-  // Pin deletions and edits will NOT cause the map to zoom out!
-  useEffect(() => {
-    if (step !== 2 || !mapRef.current) return
-    if (!shouldFitStep2Ref.current) return
-
-    const allPts = []
-    if (startPoint) allPts.push([startPoint.lat, startPoint.lng])
-    permits.forEach((p) => {
-      p.waypoints.forEach((w) => allPts.push([w.lat, w.lng]))
-      if (p.endPoint) allPts.push([p.endPoint.lat, p.endPoint.lng])
-    })
-    if (endPoint) allPts.push([endPoint.lat, endPoint.lng])
-
-    if (allPts.length) {
-      mapRef.current.fitBounds(L.latLngBounds(allPts), { padding: [40, 40] })
-      shouldFitStep2Ref.current = false
     }
   }, [step, startPoint, endPoint, permits])
 
@@ -334,11 +341,21 @@ const CreateRoute = () => {
     if (target === 'start') {
       setStartPoint(point)
       setStartInput(coordinates)
+      if (step === 2) {
+        setPermits((currentPermits) => currentPermits.map((permit, index) =>
+          index === 0 ? { ...permit, startPoint: point, startLocation: coordinates } : permit
+        ))
+      }
     } else {
       setEndPoint(point)
       setEndInput(coordinates)
+      if (step === 2) {
+        setPermits((currentPermits) => currentPermits.map((permit, index) =>
+          index === currentPermits.length - 1 ? { ...permit, endPoint: point, endLocation: coordinates } : permit
+        ))
+      }
     }
-  }, [])
+  }, [step])
 
   // ── Drag handler for intermediate waypoints in Step 2 ────────────────────
   const handleWaypointDrag = (permitId, wpId, event) => {
@@ -382,20 +399,28 @@ const CreateRoute = () => {
     setIsParsingPermit(true)
 
     let parsedWaypoints = []
+    let parsedPermitNumber = null
+    let parsedIssuingState = null
 
     // 1. If permit file is uploaded, attempt to call backend parser API
     if (permitFile) {
       try {
         const response = await teamManageApi.parsePermitDocument(accessToken, permitFile)
-        if (response?.waypoints && Array.isArray(response.waypoints) && response.waypoints.length > 0) {
-          parsedWaypoints = response.waypoints.map((wp, i) => ({
+        const parsedPermit = response?.data || response
+        parsedPermitNumber = parsedPermit?.permit_number || null
+        parsedIssuingState = parsedPermit?.issuing_state || null
+        if (Array.isArray(parsedPermit?.waypoints) && parsedPermit.waypoints.length > 0) {
+          parsedWaypoints = parsedPermit.waypoints.map((wp, i) => ({
             id: `wp-parsed-${i}-${Date.now()}`,
             name: wp.name || wp.instruction || `Waypoint ${i + 1}`,
             lat: Number(wp.latitude ?? wp.lat ?? (currentStart.lat + (i + 1) * 0.02)),
             lng: Number(wp.longitude ?? wp.lng ?? (currentStart.lng + (i + 1) * 0.02)),
-          }))
+          })).filter((waypoint) => Number.isFinite(waypoint.lat) && Number.isFinite(waypoint.lng))
+        } else if (Array.isArray(parsedPermit?.unresolved_waypoints)) {
+          parsedWaypoints = interpolateWaypoints(currentStart, endPoint, parsedPermit.unresolved_waypoints)
         }
-      } catch {
+      } catch (parseError) {
+        console.warn('Permit parsing failed; using route interpolation instead.', parseError)
         // Backend OCR endpoint not available or not yet deployed; fall back to client interpolation
       }
     }
@@ -425,6 +450,8 @@ const CreateRoute = () => {
         endPoint,
         permitText: permitText.trim(),
         permitFile,
+        permitNumber: parsedPermitNumber,
+        issuingState: parsedIssuingState,
         waypoints: parsedWaypoints,
       }
       setPermits((prev) => [...prev, newPermit])
@@ -441,13 +468,15 @@ const CreateRoute = () => {
           endPoint,
           permitText: permitText.trim(),
           permitFile,
+          permitNumber: parsedPermitNumber,
+          issuingState: parsedIssuingState,
           waypoints: parsedWaypoints,
         },
       ])
     }
 
-    // Trigger bounds fit once when entering Step 2
-    shouldFitStep2Ref.current = true
+    rememberViewport()
+    setSelectedWaypoint(null)
     setStep(2)
   }
 
@@ -471,6 +500,7 @@ const CreateRoute = () => {
           : { ...p, waypoints: p.waypoints.filter((w) => w.id !== wpId) }
       )
     )
+    setSelectedWaypoint((selected) => selected?.permitId === permitId && selected?.waypointId === wpId ? null : selected)
   }
 
   // Inserting a waypoint directly AFTER the clicked index
@@ -517,6 +547,7 @@ const CreateRoute = () => {
   // Returns back to Step 1 to import the next permit, locking the Start Point
   // to the previous permit's End Point and requiring ONLY the End Point to be set.
   const handleAddPermitClick = () => {
+    rememberViewport()
     const lastPermit = permits.at(-1)
     const chainedStart = lastPermit?.endPoint || endPoint || (lastPermit?.waypoints.at(-1) ? { lat: lastPermit.waypoints.at(-1).lat, lng: lastPermit.waypoints.at(-1).lng } : startPoint)
     const chainedLocation = lastPermit?.endLocation || endInput || `${chainedStart?.lat.toFixed(5)}, ${chainedStart?.lng.toFixed(5)}`
@@ -531,7 +562,6 @@ const CreateRoute = () => {
     // Reset fields for the new permit
     setPermitText('')
     setPermitFile(null)
-    setStartPoint(chainedStart)
     setStartInput(chainedLocation)
     setEndPoint(null)
     setEndInput('')
@@ -545,7 +575,7 @@ const CreateRoute = () => {
   const handleAddPin = () => {
     // Add pin at current map center (or active permit end) without zooming out
     const center = mapRef.current ? mapRef.current.getCenter() : (endPoint || { lat: defaultCenter[0], lng: defaultCenter[1] })
-    const targetPermit = permits[0]
+    const targetPermit = permits.at(-1)
     if (!targetPermit) return
 
     const newPt = {
@@ -555,19 +585,20 @@ const CreateRoute = () => {
       lng: Number(center.lng.toFixed(6)),
     }
 
-    setPermits((prev) =>
-      prev.map((p, idx) => (idx === 0 ? { ...p, waypoints: [...p.waypoints, newPt] } : p))
-    )
+    setPermits((prev) => prev.map((permit) =>
+      permit.id === targetPermit.id ? { ...permit, waypoints: [...permit.waypoints, newPt] } : permit
+    ))
+    setSelectedWaypoint({ permitId: targetPermit.id, waypointId: newPt.id })
   }
 
   const handleDeletePin = () => {
-    // Remove the last waypoint of the first permit without resetting zoom
-    setPermits((prev) => {
-      const p = prev[0]
-      if (!p || p.waypoints.length === 0) return prev
-      const updatedWps = p.waypoints.slice(0, -1)
-      return prev.map((item, idx) => (idx === 0 ? { ...item, waypoints: updatedWps } : item))
-    })
+    if (!selectedWaypoint) {
+      setStep1Error('Click a waypoint pin on the map before deleting it.')
+      return
+    }
+    rememberViewport()
+    removeWaypoint(selectedWaypoint.permitId, selectedWaypoint.waypointId)
+    setStep1Error('')
   }
 
   // ── Save Route ────────────────────────────────────────────────────────────
@@ -590,13 +621,13 @@ const CreateRoute = () => {
       const response = await teamManageApi.createDriverRoute(accessToken, driverUserId, {
         name: routeName.trim(),
         description: '',
-        start_location: startInput.trim() || 'Start',
+        start_location: permits[0]?.startLocation || startInput.trim() || 'Start',
         start_latitude: startPoint.lat,
         start_longitude: startPoint.lng,
         end_location: endInput.trim() || allRouteWaypoints.at(-1)?.name || 'End',
         end_latitude: endPoint.lat,
         end_longitude: endPoint.lng,
-        permit_text: permitText.trim() || null,
+        permit_text: permits[0]?.permitText || permitText.trim() || null,
         // Flat waypoints list for backward compatibility
         waypoints: allRouteWaypoints.map((waypoint, index) => ({
           index: index + 1,
@@ -614,6 +645,8 @@ const CreateRoute = () => {
           return {
             index: permitIndex + 1,
             name: permit.label,
+            permit_number: permit.permitNumber || null,
+            issuing_state: permit.issuingState || null,
             start_location: permit.startLocation || 'Start',
             start_latitude: permitStart.lat,
             start_longitude: permitStart.lng,
@@ -634,6 +667,9 @@ const CreateRoute = () => {
         }),
       })
 
+      if (response?.success === false || !response?.route_id) {
+        throw new Error(response?.message || 'The server did not confirm that the route was saved.')
+      }
       setSaveMessage(response?.message || 'Route created successfully.')
       window.setTimeout(() => navigate(routeHistoryPath), 700)
     } catch (error) {
@@ -980,22 +1016,22 @@ const CreateRoute = () => {
               </div>
             )}
             <MapContainer
-              center={startPoint ? [startPoint.lat, startPoint.lng] : defaultCenter}
+              center={activeStartPoint ? [activeStartPoint.lat, activeStartPoint.lng] : defaultCenter}
               zoom={13}
               style={{ height: '100%', width: '100%' }}
               ref={mapRef}
             >
               <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url={STREET_TILE_URL}
+                attribution={STREET_TILE_ATTRIBUTION}
               />
               <MapClickHandler onMapClick={handleMapClick} />
-              <MapCenterSync center={defaultCenter} shouldSync={hasDetectedLocation && !startPoint} />
+              <MapViewportTracker viewportRef={viewportRef} />
 
               {/* Start marker */}
-              {startPoint && (
+              {activeStartPoint && (
                 <Marker
-                  position={[startPoint.lat, startPoint.lng]}
+                  position={[activeStartPoint.lat, activeStartPoint.lng]}
                   icon={startIcon}
                   draggable={!addingPermit}
                   eventHandlers={{ dragend: (event) => handlePointDrag('start', event) }}
@@ -1073,9 +1109,10 @@ const CreateRoute = () => {
                   ref={mapRef}
                 >
                   <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url={STREET_TILE_URL}
+                    attribution={STREET_TILE_ATTRIBUTION}
                   />
+                  <MapViewportTracker viewportRef={viewportRef} />
 
                   {/* Road path polyline */}
                   {routePath.length > 1 && (
@@ -1095,15 +1132,22 @@ const CreateRoute = () => {
                   )}
 
                   {/* Intermediate waypoint markers across all permits - Draggable */}
-                  {permits.map((permit) =>
+                  {permits.map((permit, permitIndex) =>
                     permit.waypoints.map((wp, idx) => (
                       <Marker
                         key={wp.id}
                         position={[wp.lat, wp.lng]}
-                        icon={pinIcon(idx + 1)}
+                        icon={pinIcon(
+                          permits.slice(0, permitIndex).reduce((total, item) => total + item.waypoints.length, 0) + idx + 1,
+                          selectedWaypoint?.permitId === permit.id && selectedWaypoint?.waypointId === wp.id,
+                        )}
                         draggable
                         eventHandlers={{
                           dragend: (event) => handleWaypointDrag(permit.id, wp.id, event),
+                          click: () => {
+                            setSelectedWaypoint({ permitId: permit.id, waypointId: wp.id })
+                            setStep1Error('')
+                          },
                         }}
                       >
                         <Tooltip direction="top" offset={[0, -16]}>
@@ -1140,7 +1184,9 @@ const CreateRoute = () => {
                   <button
                     type="button"
                     onClick={handleDeletePin}
-                    className="rounded bg-[#555] px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-[#333] cursor-pointer"
+                    disabled={!selectedWaypoint}
+                    title={selectedWaypoint ? 'Delete the selected pin' : 'Select a waypoint pin first'}
+                    className="rounded bg-[#555] px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-[#333] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Delete Pin
                   </button>
@@ -1151,8 +1197,10 @@ const CreateRoute = () => {
                     // Re-fetch road path
                     const allPts = []
                     if (startPoint) allPts.push(startPoint)
-                    permits.forEach((p) => p.waypoints.forEach((w) => allPts.push({ lat: w.lat, lng: w.lng })))
-                    if (endPoint) allPts.push(endPoint)
+                    permits.forEach((permit) => {
+                      permit.waypoints.forEach((waypoint) => allPts.push({ lat: waypoint.lat, lng: waypoint.lng }))
+                      if (permit.endPoint) allPts.push(permit.endPoint)
+                    })
                     fetchRoadPath(allPts).then(setRoutePath)
                   }}
                   className="rounded bg-[#22a651] px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-[#1a8040] cursor-pointer"
@@ -1160,6 +1208,7 @@ const CreateRoute = () => {
                   Update Map
                 </button>
               </div>
+              {step1Error && <p className="mt-2 text-[12px] font-medium text-[#e53935]">{step1Error}</p>}
             </div>
 
             {/* Edit Waypoints panel */}

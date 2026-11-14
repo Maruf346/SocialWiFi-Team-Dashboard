@@ -129,3 +129,43 @@ GET /api/v1/route/ with driver's token -> contains route_id
 ```
 
 If the POST does not return `201`, use its response body to correct serializer validation first. If it returns `201` and either GET omits the ID, the corresponding backend queryset/ownership mapping is the defect.
+
+## Permit parsing and multi-permit requirements
+
+The frontend uploads every permit independently to:
+
+`POST /api/v1/team-dashboard/manage/permits/parse/`
+
+Each request is multipart form data with a `file` field. The parser must be stateless: parsing Permit 2 must return Permit 2's extracted data and must not reuse, replace, or depend on Permit 1's prior parser state.
+
+Return the schema's `TeamPermitParseResponse` directly (an optional `{ "data": ... }` wrapper is also tolerated by the frontend):
+
+```json
+{
+  "status": "success",
+  "permit_number": "P-200",
+  "issuing_state": "NE",
+  "origin": { "name": "Origin", "latitude": 41.1, "longitude": -97.1 },
+  "destination": { "name": "Destination", "latitude": 41.8, "longitude": -96.2 },
+  "waypoints": [
+    {
+      "index": 1,
+      "name": "US-30 EB",
+      "waypoint_type": "CHECKPOINT",
+      "latitude": 41.3,
+      "longitude": -96.9
+    }
+  ],
+  "unresolved_waypoints": []
+}
+```
+
+Requirements:
+
+- Always return `waypoints` and `unresolved_waypoints` arrays, including when empty.
+- Return numeric, finite latitude and longitude values for resolved points.
+- Put OCR-extracted names that could not be geocoded in `unresolved_waypoints`; the frontend will display them using safe interpolation instead of dropping Permit 2 data.
+- Return a non-2xx response when parsing genuinely fails. Do not return `200` with an unrelated or stale permit result.
+- Add a test that parses two different files sequentially and confirms the second response contains only the second permit's number, state, and waypoints.
+
+The final create request includes all permits in `permits[]`, with each permit's own start/end coordinates, permit metadata, and waypoint array. The route-create transaction must persist every nested permit rather than only `permits[0]`.
