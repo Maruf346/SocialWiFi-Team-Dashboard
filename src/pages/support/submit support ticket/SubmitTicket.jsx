@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Upload } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Upload, X } from 'lucide-react'
 import { useAuth } from '../../../context/useAuth'
 import { teamSupportApi } from '../../../services/teamSupportApi'
 
@@ -18,9 +18,18 @@ const initialFormData = {
 }
 
 const platformOptions = ['iPhone', 'iPod', 'Android Phone', 'Android Tablet', 'Web Dashboard', 'Other']
+const MAX_UPLOADS = 3
+const ALLOWED_FILE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.doc', '.docx']
+
+const isAllowedFile = (file) => {
+  if (file.type.startsWith('image/')) return true
+  const filename = file.name.toLowerCase()
+  return ALLOWED_FILE_EXTENSIONS.some((extension) => filename.endsWith(extension))
+}
 
 const SubmitTicket = () => {
   const { accessToken } = useAuth()
+  const fileInputRef = useRef(null)
   const [topics, setTopics] = useState([])
   const [selectedTopic, setSelectedTopic] = useState('')
   const [selectedSubtopic, setSelectedSubtopic] = useState('')
@@ -30,6 +39,7 @@ const SubmitTicket = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
 
   const selectedTopicData = useMemo(() => {
     return topics.find((topic) => topic.key === selectedTopic || topic.label === selectedTopic) || null
@@ -93,17 +103,63 @@ const SubmitTicket = () => {
     setFormData((prev) => ({ ...prev, platform }))
   }
 
-  const handleFileChange = (event) => {
-    const files = Array.from(event.target.files || [])
-
-    if (files.length > 3) {
-      setError('You can upload up to 3 files only.')
-      event.target.value = ''
+  const addFiles = (incomingFiles) => {
+    const files = Array.from(incomingFiles || [])
+    const unsupportedFile = files.find((file) => !isAllowedFile(file))
+    if (unsupportedFile) {
+      setError(`${unsupportedFile.name} is not a supported image, PDF, DOC, or DOCX file.`)
       return
     }
 
+    setUploadedFiles((currentFiles) => {
+      const combinedFiles = [...currentFiles]
+      files.forEach((file) => {
+        const isDuplicate = combinedFiles.some((existingFile) =>
+          existingFile.name === file.name &&
+          existingFile.size === file.size &&
+          existingFile.lastModified === file.lastModified
+        )
+        if (!isDuplicate) combinedFiles.push(file)
+      })
+
+      if (combinedFiles.length > MAX_UPLOADS) {
+        setError(`You can upload up to ${MAX_UPLOADS} files only.`)
+        return currentFiles
+      }
+
+      setError('')
+      return combinedFiles
+    })
+  }
+
+  const handleFileChange = (event) => {
+    addFiles(event.target.files)
+    event.target.value = ''
+  }
+
+  const handleDrop = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDraggingFiles(false)
+    addFiles(event.dataTransfer.files)
+  }
+
+  const handleDragOver = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = 'copy'
+    setIsDraggingFiles(true)
+  }
+
+  const handleDragLeave = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!event.currentTarget.contains(event.relatedTarget)) setIsDraggingFiles(false)
+  }
+
+  const removeFile = (fileToRemove) => {
+    setUploadedFiles((files) => files.filter((file) => file !== fileToRemove))
     setError('')
-    setUploadedFiles(files)
   }
 
   const resetForm = () => {
@@ -118,6 +174,7 @@ const SubmitTicket = () => {
     setSelectedTopic('')
     setSelectedSubtopic('')
     setUploadedFiles([])
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const validateForm = () => {
@@ -405,31 +462,56 @@ const SubmitTicket = () => {
             <div className="grid grid-cols-[180px_1fr] items-center gap-4 border-b border-[#d9d9d9] pb-3">
               <label className="text-[14px] font-semibold text-[#555]">Upload a screenshot of file</label>
               <div className="w-full max-w-[520px]">
-                <div className="flex h-28 w-full rounded border border-[#d0d0d0] bg-[#f6f6f6] text-center text-[12px] text-[#777]">
-                  <label htmlFor="ticket-upload" className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 px-4 py-3">
+                <div
+                  onDragEnter={handleDragOver}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`flex h-28 w-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed px-4 py-3 text-center text-[12px] transition-colors ${
+                    isDraggingFiles
+                      ? 'border-[#ff823d] bg-[#fff2e9] text-[#b84e16]'
+                      : 'border-[#c8c8c8] bg-[#f6f6f6] text-[#777]'
+                  }`}
+                >
                     <input
+                      ref={fileInputRef}
                       id="ticket-upload"
                       type="file"
                       accept="image/*,.pdf,.doc,.docx"
                       multiple
-                      className="hidden"
+                      className="sr-only"
                       onChange={handleFileChange}
                     />
                     <Upload size={24} strokeWidth={2} />
-                    <span>
-                      Drag &amp; Drop Files,
-                      <span className="ml-1 underline underline-offset-2">Choose Files to Upload</span>
-                    </span>
-                    <span>You can upload up to 3 files</span>
-                  </label>
+                    <div>
+                      <span>Drag &amp; Drop Files, </span>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="font-medium text-[#303b80] underline underline-offset-2 hover:text-[#ff823d] cursor-pointer"
+                      >
+                        Choose Files to Upload
+                      </button>
+                    </div>
+                    <span>{isDraggingFiles ? 'Release to add files' : `You can upload up to ${MAX_UPLOADS} files`}</span>
                 </div>
 
                 {uploadedFiles.length > 0 && (
-                  <div className="mt-2 rounded border border-[#d9d9d9] bg-white px-2 py-2 text-[11px] text-[#555]">
+                  <div aria-live="polite" className="mt-2 rounded border border-[#d9d9d9] bg-white px-2 py-2 text-[11px] text-[#555]">
                     <div className="mb-1 font-medium text-[#333]">Selected files:</div>
-                    <ul className="list-disc pl-5">
+                    <ul className="space-y-1">
                       {uploadedFiles.map((file) => (
-                        <li key={`${file.name}-${file.lastModified}`}>{file.name}</li>
+                        <li key={`${file.name}-${file.lastModified}`} className="flex items-center justify-between gap-3">
+                          <span className="min-w-0 truncate" title={file.name}>{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeFile(file)}
+                            aria-label={`Remove ${file.name}`}
+                            className="flex-shrink-0 text-[#b42318] hover:text-[#7a1710] cursor-pointer"
+                          >
+                            <X size={14} />
+                          </button>
+                        </li>
                       ))}
                     </ul>
                   </div>
